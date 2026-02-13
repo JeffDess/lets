@@ -190,13 +190,14 @@ You can compose tasks in two ways:
 If you wish to run a task in CI, you can just run it from the flake. It will
 use the exact same packages as on your local dev shell.
 
+It's important to use `nix run` and not `nix shell` or `nix develop`, as the
+latter would install extra packages that aren't needed to run the tasks.
+
 ### GitHub Actions
 
 ```yaml
-name: CI
-on:
-  push:
-  pull_request:
+env:
+  NIX_CONFIG: experimental-features = nix-command flakes
 
 jobs:
   lint:
@@ -209,17 +210,25 @@ jobs:
         run: nix run .#lint
 ```
 
+You can see an example in the [Github CI workflow](.github/workflows/ci.yml) of this project.
+
 ### GitLab CI
+
+> [!TIP]
+> Use a self-hosted NixOS shell executor for blazingly fast job runs
 
 ```yaml
 variables:
-  NIX_CONFIG: "experimental-features = nix-command flakes"
+  NIX_CONFIG: experimental-features = nix-command flakes
 
 lint:
   stage: lint
   script:
     - nix run .#lint
+
 ```
+
+You can see a complete file in the [Gitlab CI Pipeline example](.gitlab-ci.yml).
 
 ## Task organization strategies
 
