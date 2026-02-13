@@ -1,0 +1,32 @@
+---
+stages:
+  - lint
+  - test
+
+default:
+  tags:
+    - nixos
+
+variables:
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+
+format:
+  stage: lint
+  script:
+    - nix fmt
+    - git diff --exit-code
+
+lint-nix:
+  stage: lint
+  script:
+    - nix run .#lint-nix
+
+lint-bash:
+  stage: lint
+  script:
+    - nix run .#lint-bash
+
+flake-check:
+  stage: test
+  script:
+    - nix flake check

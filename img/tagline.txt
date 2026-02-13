@@ -1,0 +1,6 @@
+lets init project
+lets lint code
+lets test changes
+lets build releases
+lets run tasks
+lets do it!!!
