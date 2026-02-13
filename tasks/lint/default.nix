@@ -8,7 +8,7 @@ let
       pkgs.shfmt
       pkgs.shellcheck
     ];
-    text = builtins.readFile ../scripts/lint-nix-bash-fragments.sh;
+    text = builtins.readFile ./lint-nix-bash-fragments.sh;
   };
 in
 rec {

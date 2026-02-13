@@ -9,6 +9,6 @@
       pkgs.zsh
       pkgs.nushell
     ];
-    text = builtins.readFile ../scripts/demo.sh;
+    text = builtins.readFile ./demo.sh;
   };
 }
