@@ -19,7 +19,7 @@ fi
 if [ -z "$type" ]; then
   target="$task"
 else
-  target="${task}-${type}"
+  target="${task}_${type}"
 fi
 
 nix run .#"$target" -- "$@"

@@ -16,7 +16,7 @@ let
       name:
       let
         task = tasks.${name};
-        displayName = builtins.replaceStrings [ "-" ] [ " " ] name;
+        displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
       in
       "printf \"  \\033[1;34m%s\\033[0m - %s\\n\" \"${displayName}\" \"${task.description}\""
     ) taskNames

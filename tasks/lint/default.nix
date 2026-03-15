@@ -1,7 +1,7 @@
 { pkgs }:
 let
-  lint-nix-bash = pkgs.writeShellApplication {
-    name = "lint-nix-bash";
+  lint_nix-bash = pkgs.writeShellApplication {
+    name = "lint_nix-bash";
     runtimeInputs = [
       pkgs.findutils
       pkgs.gawk
@@ -12,10 +12,10 @@ let
   };
 in
 rec {
-  lint-nix = {
+  lint_nix = {
     description = "Lint Nix files with statix and deadnix";
     app = pkgs.writeShellApplication {
-      name = "lint-nix";
+      name = "lint_nix";
       runtimeInputs = [
         pkgs.statix
         pkgs.deadnix
@@ -29,10 +29,10 @@ rec {
     };
   };
 
-  lint-bash = {
+  lint_bash = {
     description = "Lint bash fragments in Nix files and all .sh files";
     app = pkgs.writeShellApplication {
-      name = "lint-bash";
+      name = "lint_bash";
       runtimeInputs = [
         pkgs.bash
         pkgs.fd
@@ -41,7 +41,7 @@ rec {
       ];
       text = ''
         set -euo pipefail
-        ${lint-nix-bash}/bin/lint-nix-bash
+        ${lint_nix-bash}/bin/lint_nix-bash
 
         fd --hidden --exclude .git --type f --extension sh --print0 |
           xargs -0 -r sh -c 'shfmt -d -i 2 "$@"; shellcheck "$@"' _
@@ -56,8 +56,8 @@ rec {
     app = pkgs.writeShellApplication {
       name = "lint";
       text = ''
-        ${lint-nix.app}/bin/lint-nix
-        ${lint-bash.app}/bin/lint-bash
+        ${lint_nix.app}/bin/lint_nix
+        ${lint_bash.app}/bin/lint_bash
       '';
     };
   };

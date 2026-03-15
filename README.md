@@ -51,11 +51,11 @@ This project aims for:
 
       # Your project tasks
       tasks = {
-        inherit (baseTasks) lint-bash lint-nix;
-        lint-js = {
+        inherit (baseTasks) lint_bash lint_nix;
+        lint_js = {
           description = "Lint JavaScript";
           app = pkgs.writeShellApplication {
-            name = "lint-js";
+            name = "lint_js";
             runtimeInputs = [ pkgs.nodejs pkgs.nodePackages.eslint ];
             text = "eslint .";
           };
@@ -87,13 +87,13 @@ lets lint js
 `mkTasks` ships with a small set of tasks you can reuse directly or compose in your own tasks:
 
 * `help` - Lists available tasks and their descriptions (auto-generated from your task set).
-* `lint-bash` - Lints bash fragments embedded in Nix files and all `.sh` files using `shfmt` and `shellcheck`.
-* `lint-nix` - Lints Nix files with `statix` and `deadnix`.
+* `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files using `shfmt` and `shellcheck`.
+* `lint_nix` - Lints Nix files with `statix` and `deadnix`.
 * `lint` - Runs all lint tasks in this flake (but you probably want to define your own).
 
 ## Demo task (from the flake)
 
-The repo includes a [`demo` task](tasks/demo.nix) you can run directly from the flake:
+The repo includes a [`demo` task](tasks/demo/default.nix) you can run directly from the flake:
 
 ```bash
 nix run github:JeffDess/lets demo
@@ -110,8 +110,9 @@ Each task is an attribute with:
   * `text` is the actual implementation
 
 > [!IMPORTANT]
-> Hyphens in app name are used for splitting subcommands.
-> So `lint-nix` will be called with `lets lint nix`
+> Use underscores in task names when you want multi-word commands.
+> So `lint_nix` will be called with `lets lint nix`
+> Dashes stay literal inside each word, so `lint_nix-bash` will be called with `lets lint nix-bash`
 
 Tasks can be:
 
@@ -122,12 +123,12 @@ Minimal task example:
 
 ```nix
 {
-  lint-js = {
+  lint_js = {
     description = "Lint JavaScript";
     app = pkgs.writeShellApplication {
-      name = "lint-js";
+      name = "lint_js";
       runtimeInputs = [ pkgs.nodejs pkgs.nodePackages.eslint ];
-      text = builtins.readFile ./scripts/lint-js.sh;
+      text = builtins.readFile ./scripts/lint_js.sh;
     };
   };
 }
@@ -158,10 +159,10 @@ You can compose tasks in two ways:
     description = "Lint all";
     app = pkgs.writeShellApplication {
       name = "lint";
-      runtimeInputs = [ tasks.lint-js tasks.lint-nix ];
+      runtimeInputs = [ tasks.lint_js tasks.lint_nix ];
       text = ''
-        lint-js
-        lint-nix
+        lint_js
+        lint_nix
       '';
     };
   };
@@ -177,8 +178,8 @@ You can compose tasks in two ways:
     app = pkgs.writeShellApplication {
       name = "lint";
       text = ''
-        ${tasks.lint-js}/bin/lint-js
-        ${tasks.lint-nix}/bin/lint-nix
+        ${tasks.lint_js}/bin/lint_js
+        ${tasks.lint_nix}/bin/lint_nix
       '';
     };
   };
@@ -243,7 +244,7 @@ Here are some ideas:
 .
 ├── flake.nix
 └── scripts/
-   └── lint-js.sh
+   └── lint_js.sh
 ```
 
 ### 2) Put all tasks in one `tasks.nix` (simple tasks)
@@ -253,7 +254,7 @@ Here are some ideas:
 ├── flake.nix
 ├── tasks.nix
 └── scripts/
-   ├── lint-js.sh
+   ├── lint_js.sh
    └── test.sh
 ```
 
@@ -264,11 +265,11 @@ Here are some ideas:
 ├── flake.nix
 ├── tasks/
 │  ├── default.nix
-│  ├── lint-js.nix
+│  ├── lint_js.nix
 │  ├── test.nix
 │  └── build.nix
 └── scripts/
-   ├── lint-js.sh
+   ├── lint_js.sh
    └── test.sh
 ```
 
@@ -281,9 +282,9 @@ Useful when each task has its own script, config, or fixtures.
 ├── flake.nix
 ├── tasks/
 │  ├── default.nix
-│  ├── lint-js/
+│  ├── lint_js/
 │  │  ├── default.nix
-│  │  └── lint-js.sh
+│  │  └── lint_js.sh
 │  ├── test/
 │  │  ├── default.nix
 │  │  └── test.sh
