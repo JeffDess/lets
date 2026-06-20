@@ -186,7 +186,7 @@ You can compose tasks in two ways:
     description = "Lint all";
     app = pkgs.writeShellApplication {
       name = "lint";
-      runtimeInputs = [ tasks.lint_js tasks.lint_nix ];
+      runtimeInputs = with tasks; [ lint_js.app lint_nix.app ];
       text = ''
         lint_js
         lint_nix
@@ -205,8 +205,8 @@ You can compose tasks in two ways:
     app = pkgs.writeShellApplication {
       name = "lint";
       text = ''
-        ${tasks.lint_js}/bin/lint_js
-        ${tasks.lint_nix}/bin/lint_nix
+        ${tasks.lint_js.app}/bin/lint_js
+        ${tasks.lint_nix.app}/bin/lint_nix
       '';
     };
   };
