@@ -30,7 +30,7 @@ This project aims for:
 ## Quickstart (integrate into your flake)
 
 1. Add `lets` as an input.
-2. Define tasks in your project (and optionally reuse some from `mkTasks`).
+2. Define tasks in your project (and optionally reuse some presets).
 3. Build outputs with `mkOutputs`.
 4. Add `mkLets` to your dev shell so `lets <task>` works.
 
@@ -49,18 +49,19 @@ This project aims for:
       # Optional: reuse upstream tasks
       baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; };
 
-      # Your project tasks
+      # Your project tasks (see auto-discovery for an alternative approach)
       tasks = {
-        inherit (baseTasks) lint_bash lint_nix;
+        inherit (baseTasks) lint_bash lint_nix; # Optional
+        # Example of inline task
         lint_js = {
           description = "Lint JavaScript";
           app = pkgs.writeShellApplication {
             name = "lint_js";
-            runtimeInputs = [ pkgs.nodejs pkgs.nodePackages.eslint ];
+            runtimeInputs = with pkgs; [ nodejs nodePackages.eslint ];
             text = "eslint .";
           };
         };
-      };
+      } // import ./tasks.nix { inherit pkgs; }; # Optional, for external task definitions
 
       taskOutputs = lets.lib.${system}.mkOutputs { inherit pkgs tasks; };
       letsCmd = lets.lib.${system}.mkLets { inherit pkgs; };
@@ -81,6 +82,32 @@ lets lint bash
 lets lint nix
 lets lint js
 ```
+
+### Auto-discovery
+
+Instead of including tasks in your flake or wiring each task by hand,
+point `mkTasksFromDir` at a directory and every nix file in it becomes a task
+automatically.
+
+```nix
+tasks = lets.lib.${system}.mkTasksFromDir {
+  inherit pkgs;
+  dir = ./tasks; # or any directory in your project
+  extraTasks = { inherit (baseTasks) lint_bash lint_nix lint; }; # Optional
+};
+```
+
+It discovers both layouts:
+
+* `<dir>/<name>.nix` — a single file
+* `<dir>/<name>/default.nix` — a task directory (for tasks with their own scripts/fixtures)
+
+Directories without a `default.nix` (e.g. a shared `tasks/lib/`) are ignored,
+so you can keep helper scripts next to your tasks.
+
+Each task file receives `{ pkgs, tasks, ... }` and returns an attrset of tasks.
+The `tasks` argument is the fully-resolved set, so a task can reference another
+(e.g. `tasks.lint_nix.app`). A single file may declare more than one task.
 
 ## Base tasks
 
@@ -127,7 +154,7 @@ Minimal task example:
     description = "Lint JavaScript";
     app = pkgs.writeShellApplication {
       name = "lint_js";
-      runtimeInputs = [ pkgs.nodejs pkgs.nodePackages.eslint ];
+      runtimeInputs = with pkgs; [ nodejs nodePackages.eslint ];
       text = builtins.readFile ./scripts/lint_js.sh;
     };
   };
@@ -233,12 +260,14 @@ You can see a complete file in the [Gitlab CI Pipeline example](.gitlab-ci.yml).
 
 ## Task organization strategies
 
-You can organize tasks in several ways. You can start small and expands as you
-add more tasks.
+You can organize tasks in several ways.
+You can start small and expands as you add more tasks.
 
 Here are some ideas:
 
 ### 1) Keep tasks in `flake.nix` (really small projects)
+
+Everything is self-contained in your flake:
 
 ```text
 .
@@ -249,6 +278,8 @@ Here are some ideas:
 
 ### 2) Put all tasks in one `tasks.nix` (simple tasks)
 
+Import an external file containing all of your tasks:
+
 ```text
 .
 ├── flake.nix
@@ -258,30 +289,53 @@ Here are some ideas:
    └── test.sh
 ```
 
-### 3) Use `tasks/default.nix` importing one file per task
+For this pattern, you can include it like:
+
+```nix
+tasks = import ./tasks.nix { inherit pkgs; };
+```
+
+Or, with base tasks:
+
+```nix
+tasks = {
+  inherit (baseTasks) lint_bash lint_nix;
+} // import ./tasks.nix { inherit pkgs; };
+```
+
+### 3) One file per task in `tasks/`
 
 ```text
 .
 ├── flake.nix
-├── tasks/
-│  ├── default.nix
-│  ├── lint_js.nix
-│  ├── test.nix
-│  └── build.nix
-└── scripts/
-   ├── lint_js.sh
-   └── test.sh
+└── tasks/
+   ├── lib/
+   │  ├── lint_js.sh
+   │  └── test.sh
+   ├── lint_js.nix
+   ├── test.nix
+   └── build.nix
+```
+
+Auto-discovered with [`mkTasksFromDir`](#auto-discovery):
+
+```nix
+tasks = lets.lib.${system}.mkTasksFromDir {
+  inherit pkgs;
+  dir = ./tasks;
+  extraTasks = { inherit (baseTasks) lint_bash; }; # Optional
+};
 ```
 
 ### 4) Use task directories (`tasks/<taskName>/default.nix`)
 
 Useful when each task has its own script, config, or fixtures.
+Also auto-discovered with [`mkTasksFromDir`](#auto-discovery).
 
 ```text
 .
 ├── flake.nix
 ├── tasks/
-│  ├── default.nix
 │  ├── lint_js/
 │  │  ├── default.nix
 │  │  └── lint_js.sh
@@ -295,3 +349,5 @@ Useful when each task has its own script, config, or fixtures.
 └── scripts/
    └── shared-lib.sh
 ```
+
+With auto-discovery, you could easily mix #3 and #4.

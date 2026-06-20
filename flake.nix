@@ -11,6 +11,7 @@
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
       mkTasks = import ./lib/mkTasks.nix;
+      mkTasksFromDir = import ./lib/mkTasksFromDir.nix;
       mkOutputs = import ./lib/mkOutputs.nix;
       mkLets = import ./lib/mkLets.nix;
       tasks = mkTasks { inherit pkgs; };
@@ -32,7 +33,12 @@
       };
 
       lib.${system} = {
-        inherit mkTasks mkOutputs mkLets;
+        inherit
+          mkTasks
+          mkOutputs
+          mkLets
+          mkTasksFromDir
+          ;
       };
 
       formatter.${system} = pkgs.nixfmt-tree;
