@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, ... }:
 let
   lint_nix-bash = pkgs.writeShellApplication {
     name = "lint_nix-bash";
