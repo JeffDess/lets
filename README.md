@@ -104,10 +104,7 @@ It discovers both layouts:
 
 Directories without a `default.nix` (e.g. a shared `tasks/lib/`) are ignored,
 so you can keep helper scripts next to your tasks.
-
-Each task file receives `{ pkgs, tasks, ... }` and returns an attrset of tasks.
-The `tasks` argument is the fully-resolved set, so a task can reference another
-(e.g. `tasks.lint_nix.app`). A single file may declare more than one task.
+A single file may declare more than one task.
 
 ## Base tasks
 
@@ -116,6 +113,7 @@ The `tasks` argument is the fully-resolved set, so a task can reference another
 * `help` - Lists available tasks and their descriptions (auto-generated from your task set).
 * `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files using `shfmt` and `shellcheck`.
 * `lint_nix` - Lints Nix files with `statix` and `deadnix`.
+* `lint_nix-bash` - Lints just the bash fragments embedded in Nix files.
 * `lint` - Runs all lint tasks in this flake (but you probably want to define your own).
 
 ## Demo task (from the flake)
@@ -131,20 +129,24 @@ nix run github:JeffDess/lets demo
 Each task is an attribute with:
 
 * `description` (shown in `lets help`)
-* `app` (usually from `pkgs.writeShellApplication`)
-  * `name` will be used for invoking it.
-  * `runtimeInputs` must include packages you run in your task
-  * `text` is the actual implementation
+* `name` (optional) is the built binary, which is the command you run.
+  Defaults to the attribute key. You most likely don't need to set that value,
+  unless you have a special case for it.
+* `runtimeInputs` must include packages you run in your task
+* `run` is the actual implementation
+* `flags` (optional): the command flags you want to be parsed and passed down to
+  `run` as environment variable.
+  Read more about this in the [declarative flags section](#declarative-flags).
 
 > [!IMPORTANT]
-> Use underscores in task names when you want multi-word commands.
+> Use underscores in task key/names when you want multi-word commands.
 > So `lint_nix` will be called with `lets lint nix`
 > Dashes stay literal inside each word, so `lint_nix-bash` will be called with `lets lint nix-bash`
 
-Tasks can be:
+Task execution can be:
 
-* defined directly in Nix (`text = '' ... '';`)
-* backed by shell scripts (`text = builtins.readFile ./scripts/my-task.sh;`)
+* defined directly in Nix (`run = '' ... '';`)
+* backed by shell scripts (`run = builtins.readFile ./scripts/my-task.sh;`)
 
 Minimal task example:
 
@@ -155,63 +157,190 @@ Minimal task example:
     app = pkgs.writeShellApplication {
       name = "lint_js";
       runtimeInputs = with pkgs; [ nodejs nodePackages.eslint ];
-      text = builtins.readFile ./scripts/lint_js.sh;
+      run = builtins.readFile ./scripts/lint_js.sh;
     };
   };
 }
 ```
 
-You can also pass flags in `lets` commands:
+## Declarative flags
 
-```bash
-lets lint js --files=index.js
-# OR
-lets lint js --files index.js
-# OR
-lets lint js -f index.js
+While you could parse flags on your tasks as in any standard bash scripts,
+`mkTask` allows to declare a `flags` attrset to automatically parse flags from
+commands.
+
+```nix
+{ mkTask, ... }:
+{
+  greet = mkTask {
+    description = "Hello world with input";
+    flags = [ "name" ]
+    run = ''
+      echo "Hello $name"
+    '';
+  };
+}
 ```
 
-They will be passed on to your tasks.
-It's up to you to parse it in your implementation, as you would on a regular bash script.
+```bash
+$ lets greet --name Foo
+# Hello Foo
+```
+
+This is nice for a quick way to parse self explanatory flags, but there's also
+another way of doing this if you want to unlock more options.
+
+```nix
+{ mkTask, ... }:
+{
+  greet = mkTask {
+    description = "Hello world with input";
+    flags = {
+      name = {
+        description = "Hello world with input and default value"; # optional
+        short = "n";                    # optional: also accept -n
+        default = [ "$USER" "World" ];  # optional: see below
+        required = true;                # optional: error if left empty
+        type = "string";                # optional: "string" (default) or "bool"
+      };
+    };
+    run = ''
+      echo "Hello $name"
+    '';
+  };
+}
+```
+
+Then you'd get:
+
+```bash
+$ lets greet --name Foo
+# Hello Foo
+
+$ lets greet -n Foo
+# Hello Foo
+
+# If $USER is set to Foo
+$ lets greet
+# Hello Foo
+
+# If $USER is unset
+$ lets greet
+# Hello World
+```
+
+Each flag name becomes a bash variable in `run` (`$name`). Underscores map to
+dashes in the long form, so a `dry_run` flag exposes `--dry-run` and the variable
+`$dry_run`. A `bool` flag takes no value: its presence sets the variable to
+`true` (default `false`).
+
+You might have noticed that, since all flag parameters are optional, the first
+form `flags = [ "name" ];` is short for `flags = { name = { }; }`.
+An empty `{ }` definition is a plain `--name <value>` flag, so the two styles
+can be mixed this way.
+
+With that in mind, we could do something like:
+
+```nix
+{ mkTask, ... }:
+{
+  greet = mkTask {
+    description = "Hello world with uppercase option";
+    flags = {
+      firstname = { default = "World"; };
+      lastname = { };
+      uppercase = { type = "bool"; };
+    };
+    run = ''
+      msg="Hello $firstname''${lastname:+ $lastname!}"
+      if [ "$uppercase" = true ]; then
+        msg="''${msg^^}"
+      fi
+      echo "$msg"
+    '';
+  };
+}
+
+Then you'd get:
+
+```bash
+$ lets greet --firstname Foo
+# Hello Foo!
+
+$ lets greet --firstname Foo --uppercase
+# HELLO FOO!
+
+$ lets greet --firstname Foo --lastname Bar
+# Hello Foo Bar!
+```
+
+### Resolving a flag's value
+
+A value is resolved as **CLI argument > `default`**. `default` is either a single
+value or a list of fallbacks:
+
+* Literal: a plain string or any Nix value like `default = users.foo.name;`
+* Environment variable: an element shaped like `"$VAR"` or `"${VAR}"`
+
+Environment references are tried in the order listed, then the literal is the
+final fallback, wherever you place it.
+
+```nix
+default = [ "$USERNAME" "$USER" "Foo" ];
+default = [ "Foo" "$USERNAME" "$USER" ]; # literal position doesn't matter
+```
+
+To keep things simple and understandable, stick with the real effective order.
+
+### Flag validation
+
+`mkTask` validates the declaration at evaluation time and fails with a clear
+message on a duplicate flag name, a duplicate `short`, a name that is not a bash
+identifier, or a `short` that is not a single letter.
 
 ## Task composition
 
-You can compose tasks in two ways:
+A task can run another. Both styles use the injected `tasks` argument — the
+fully-resolved set, so you can reach a task from **any** file (this is how you
+compose across files, which `rec` can't do):
 
-1) Add the other task app to `runtimeInputs` and call it by name.
+1) Put the other apps on `PATH` with `runtimeInputs` and call them by name.
 
 ```nix
+{ tasks, mkTask, ... }:
 {
-  lint = {
-    description = "Lint all";
-    app = pkgs.writeShellApplication {
-      name = "lint";
-      runtimeInputs = with tasks; [ lint_js.app lint_nix.app ];
-      text = ''
-        lint_js
-        lint_nix
-      '';
-    };
+  check = mkTask {
+    description = "Run all checks";
+    runtimeInputs = with tasks; [ lint_nix.app test.app ];
+    run = ''
+      lint_nix
+      test
+    '';
   };
 }
 ```
 
-1) Call the other task app directly via `${task}/bin/<name>`.
+1) Reference the other app's binary directly via `${tasks.<name>.app}/bin/<name>`.
 
 ```nix
+{ tasks, mkTask, ... }:
 {
-  lint = {
-    description = "Lint all";
-    app = pkgs.writeShellApplication {
-      name = "lint";
-      text = ''
-        ${tasks.lint_js.app}/bin/lint_js
-        ${tasks.lint_nix.app}/bin/lint_nix
-      '';
-    };
+  check = mkTask {
+    description = "Run all checks";
+    run = ''
+      ${tasks.lint_nix.app}/bin/lint_nix
+      ${tasks.test.app}/bin/test
+    '';
   };
 }
 ```
+
+> [!NOTE]
+> A task's binary is named after its file — `tasks/lint_nix.nix` builds
+> `…/bin/lint_nix` — unless you set `name`, so the calls above just work. When a
+> single file declares several tasks they share the file name; there, set `name`
+> or resolve the binary with `lib.getExe` (`${lib.getExe tasks.lint_nix.app}`).
+> The built-in `lint` (several tasks in one file) composes with `lib.getExe`.
 
 ## CI integration
 

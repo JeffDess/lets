@@ -1,64 +1,57 @@
-{ pkgs, ... }:
-let
-  lint_nix-bash = pkgs.writeShellApplication {
-    name = "lint_nix-bash";
+{
+  pkgs,
+  lib,
+  mkTask,
+  ...
+}:
+rec {
+  lint_nix-bash = mkTask {
+    description = "Lint bash fragments embedded in Nix files";
     runtimeInputs = [
       pkgs.findutils
       pkgs.gawk
       pkgs.shfmt
       pkgs.shellcheck
     ];
-    text = builtins.readFile ./lint-nix-bash-fragments.sh;
+    run = builtins.readFile ./lint-nix-bash-fragments.sh;
   };
-in
-rec {
-  lint_nix = {
+
+  lint_nix = mkTask {
     description = "Lint Nix files with statix and deadnix";
-    app = pkgs.writeShellApplication {
-      name = "lint_nix";
-      runtimeInputs = [
-        pkgs.statix
-        pkgs.deadnix
-      ];
-      text = ''
-        set -euo pipefail
-        statix check .
-        deadnix .
-        echo "✅ Nix linter passed"
-      '';
-    };
+    runtimeInputs = [
+      pkgs.statix
+      pkgs.deadnix
+    ];
+    run = ''
+      statix check .
+      deadnix .
+      echo "✅ Nix linter passed"
+    '';
   };
 
-  lint_bash = {
+  lint_bash = mkTask {
     description = "Lint bash fragments in Nix files and all .sh files";
-    app = pkgs.writeShellApplication {
-      name = "lint_bash";
-      runtimeInputs = [
-        pkgs.bash
-        pkgs.fd
-        pkgs.shfmt
-        pkgs.shellcheck
-      ];
-      text = ''
-        set -euo pipefail
-        ${lint_nix-bash}/bin/lint_nix-bash
+    runtimeInputs = [
+      pkgs.bash
+      pkgs.fd
+      pkgs.shfmt
+      pkgs.shellcheck
+    ];
+    run = ''
+      ${lib.getExe lint_nix-bash.app}
 
-        fd --hidden --exclude .git --type f --extension sh --print0 |
-          xargs -0 -r sh -c 'shfmt -d -i 2 "$@"; shellcheck "$@"' _
+      fd --hidden --exclude .git --type f --extension sh --print0 |
+        xargs -0 -r sh -c 'shfmt -d -i 2 "$@"; shellcheck "$@"' _
 
-        echo "✅ Bash linter passed"
-      '';
-    };
+      echo "✅ Bash linter passed"
+    '';
   };
 
-  lint = {
+  lint = mkTask {
     description = "Run all lint tasks";
-    app = pkgs.writeShellApplication {
-      name = "lint";
-      text = ''
-        ${lint_nix.app}/bin/lint_nix
-        ${lint_bash.app}/bin/lint_bash
-      '';
-    };
+    run = ''
+      ${lib.getExe lint_nix.app}
+      ${lib.getExe lint_bash.app}
+    '';
   };
 }

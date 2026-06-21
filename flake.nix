@@ -10,6 +10,7 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      mkTask = import ./lib/mkTask.nix;
       mkTasks = import ./lib/mkTasks.nix;
       mkTasksFromDir = import ./lib/mkTasksFromDir.nix;
       mkOutputs = import ./lib/mkOutputs.nix;
@@ -34,6 +35,7 @@
 
       lib.${system} = {
         inherit
+          mkTask
           mkTasks
           mkOutputs
           mkLets

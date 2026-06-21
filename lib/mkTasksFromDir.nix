@@ -12,7 +12,22 @@ let
     || (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"));
   taskFiles = lib.filter (name: isTask name entries.${name}) (builtins.attrNames entries);
   tasks = lib.foldl' (
-    acc: name: acc // import (dir + "/${name}") { inherit pkgs tasks; }
+    acc: name:
+    let
+      mkTask = import ./mkTask.nix {
+        inherit pkgs;
+        defaultName = lib.removeSuffix ".nix" name;
+      };
+    in
+    acc
+    // import (dir + "/${name}") {
+      inherit
+        pkgs
+        lib
+        tasks
+        mkTask
+        ;
+    }
   ) extraTasks taskFiles;
 in
 tasks
