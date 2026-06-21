@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-nix
       - name: Lint Nix
-        run: nix run .#lint-nix
+        run: nix run .#lint_nix
 
   lint-bash:
     runs-on: ubuntu-latest
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-nix
       - name: Lint shell fragments
-        run: nix run .#lint-bash
+        run: nix run .#lint_bash
 
   flake-check:
     needs:
