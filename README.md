@@ -30,7 +30,7 @@ This project aims for:
 ## Quickstart (integrate into your flake)
 
 1. Add `lets` as an input.
-2. Define tasks in your project (and optionally reuse some presets).
+2. Define tasks in your project (and optionally reuse some [presets](#base-tasks)).
 3. Build outputs with `mkOutputs`.
 4. Add `mkLets` to your dev shell so `lets <task>` works.
 
@@ -46,24 +46,17 @@ This project aims for:
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
 
-      # Optional: reuse upstream tasks
-      baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; };
-
-      # Your project tasks (see auto-discovery for an alternative approach)
+      # Your project tasks (you can also import files instead, keep reading)
       tasks = {
-        inherit (baseTasks) lint_bash lint_nix; # Optional
-        # Example of inline task
-        lint_js = {
-          description = "Lint JavaScript";
-          app = pkgs.writeShellApplication {
-            name = "lint_js";
-            runtimeInputs = with pkgs; [ nodejs nodePackages.eslint ];
-            text = "eslint .";
-          };
+        greet = lets.mkTask {
+          run = ''
+            echo "Hello!"
+          '';
         };
-      } // import ./tasks.nix { inherit pkgs; }; # Optional, for external task definitions
+      };
 
       taskOutputs = lets.lib.${system}.mkOutputs { inherit pkgs tasks; };
+      # Invoke tasks with `lets ...` instead of `nix run #.<task> -- ...`
       letsCmd = lets.lib.${system}.mkLets { inherit pkgs; };
     in
     {
@@ -76,11 +69,9 @@ This project aims for:
 Then in your project:
 
 ```bash
-nix develop
-lets help
-lets lint bash
-lets lint nix
-lets lint js
+$ nix develop
+$ lets greet
+# Hello!
 ```
 
 ### Auto-discovery
@@ -90,10 +81,12 @@ point `mkTasksFromDir` at a directory and every nix file in it becomes a task
 automatically.
 
 ```nix
+baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; }; # Optional
+
 tasks = lets.lib.${system}.mkTasksFromDir {
   inherit pkgs;
   dir = ./tasks; # or any directory in your project
-  extraTasks = { inherit (baseTasks) lint_bash lint_nix lint; }; # Optional
+  extraTasks = { inherit (baseTasks) lint_nix lint; }; # Optional
 };
 ```
 
@@ -260,6 +253,7 @@ With that in mind, we could do something like:
     '';
   };
 }
+```
 
 Then you'd get:
 
