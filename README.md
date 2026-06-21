@@ -27,12 +27,12 @@ This project aims for:
 
 * [Nix](https://nixos.org/download/) with [flakes](https://wiki.nixos.org/wiki/Flakes) enabled (`nix-command` + `flakes`)
 
-## Quickstart (integrate into your flake)
+## Quickstart
 
 1. Add `lets` as an input.
 2. Define tasks in your project (and optionally reuse some [presets](#base-tasks)).
 3. Build outputs with `mkOutputs`.
-4. Add `mkLets` to your dev shell so `lets <task>` works.
+4. Add `mkLets` to your dev shell so `lets <task>` works (instead of `nix run #.<task> -- ...`).
 
 ```nix
 {
@@ -46,7 +46,7 @@ This project aims for:
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
 
-      # Your project tasks (you can also import files instead, keep reading)
+      # Your project tasks (you can also import files instead, keep reading...)
       tasks = {
         greet = lets.mkTask {
           run = ''
@@ -56,7 +56,6 @@ This project aims for:
       };
 
       taskOutputs = lets.lib.${system}.mkOutputs { inherit pkgs tasks; };
-      # Invoke tasks with `lets ...` instead of `nix run #.<task> -- ...`
       letsCmd = lets.lib.${system}.mkLets { inherit pkgs; };
     in
     {
@@ -74,20 +73,67 @@ $ lets greet
 # Hello!
 ```
 
-### Auto-discovery
+### Demo task
 
-Instead of including tasks in your flake or wiring each task by hand,
-point `mkTasksFromDir` at a directory and every nix file in it becomes a task
-automatically.
+The repo also includes a [`demo` task](tasks/demo/default.nix) you can run directly from the flake:
+
+```bash
+nix run github:JeffDess/lets demo
+```
+
+## Project Structure
+
+The quickstart defined a tasks directly in the flake. While this could
+work if you have very few tasks to run, there are better ways to
+structure your project.
+
+### Importing Tasks
+
+The first option is an external file with multiple tasks in it.
+
+Say you created `tasks.nix` next to you flake:
+
+```text
+.
+├── flake.nix
+└── tasks.nix
+```
+
+You can include it like this:
 
 ```nix
-baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; }; # Optional
+tasks = import ./tasks.nix { inherit pkgs; };
+```
 
+### Auto-discovery
+
+As you project grows, you might want a more modular approach.
+Breaking down each task in their own file keeps things tidy, but wiring each
+task by hand can be tedious.
+
+Enters auto-discovery: point `mkTasksFromDir` at a directory and every Nix file
+in it automatically becomes a task.
+
+```nix
 tasks = lets.lib.${system}.mkTasksFromDir {
   inherit pkgs;
   dir = ./tasks; # or any directory in your project
-  extraTasks = { inherit (baseTasks) lint_nix lint; }; # Optional
 };
+```
+
+Given this project structure:
+
+```text
+.
+├── flake.nix
+└── tasks/
+   ├── lib/
+   ├── test.nix
+   └── release/
+      ├── default.nix
+      ├── changelog.tpl
+      └── release.sh
+
 ```
 
 It discovers both layouts:
@@ -95,63 +141,44 @@ It discovers both layouts:
 * `<dir>/<name>.nix` — a single file
 * `<dir>/<name>/default.nix` — a task directory (for tasks with their own scripts/fixtures)
 
+So here `lets test` and `lets release` would be automatically wired.
+
 Directories without a `default.nix` (e.g. a shared `tasks/lib/`) are ignored,
 so you can keep helper scripts next to your tasks.
 A single file may declare more than one task.
 
-## Base tasks
-
-`mkTasks` ships with a small set of tasks you can reuse directly or compose in your own tasks:
-
-* `help` - Lists available tasks and their descriptions (auto-generated from your task set).
-* `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files using `shfmt` and `shellcheck`.
-* `lint_nix` - Lints Nix files with `statix` and `deadnix`.
-* `lint_nix-bash` - Lints just the bash fragments embedded in Nix files.
-* `lint` - Runs all lint tasks in this flake (but you probably want to define your own).
-
-## Demo task (from the flake)
-
-The repo includes a [`demo` task](tasks/demo/default.nix) you can run directly from the flake:
-
-```bash
-nix run github:JeffDess/lets demo
-```
-
 ## Defining tasks
 
-Each task is an attribute with:
+Tasks have those attributes:
 
-* `description` (shown in `lets help`)
-* `name` (optional) is the built binary, which is the command you run.
-  Defaults to the attribute key. You most likely don't need to set that value,
-  unless you have a special case for it.
-* `runtimeInputs` must include packages you run in your task
-* `run` is the actual implementation
-* `flags` (optional): the command flags you want to be parsed and passed down to
-  `run` as environment variable.
-  Read more about this in the [declarative flags section](#declarative-flags).
+| Attribute | Type | Required | Description |
+| --- | --- | --- | --- |
+| `description` | string | Yes | Shown in `lets help`. |
+| `name` | string | No | The built binary (the command you run). Defaults to the attribute key. You rarely need to set it. |
+| `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility.  |
+| `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
+| `flags` | attrset or list | No | CLI flags parsed and passed to `run` as variables. See the [declarative flags section](#declarative-flags). |
 
 > [!IMPORTANT]
 > Use underscores in task key/names when you want multi-word commands.
 > So `lint_nix` will be called with `lets lint nix`
 > Dashes stay literal inside each word, so `lint_nix-bash` will be called with `lets lint nix-bash`
 
+## External scripts
+
 Task execution can be:
 
 * defined directly in Nix (`run = '' ... '';`)
 * backed by shell scripts (`run = builtins.readFile ./scripts/my-task.sh;`)
 
-Minimal task example:
+Minimal task example with external script:
 
 ```nix
+{ mkTask,...}:
 {
-  lint_js = {
-    description = "Lint JavaScript";
-    app = pkgs.writeShellApplication {
-      name = "lint_js";
-      runtimeInputs = with pkgs; [ nodejs nodePackages.eslint ];
-      run = builtins.readFile ./scripts/lint_js.sh;
-    };
+  greet = mkTask {
+    description = "Hello world";
+    run = builtins.readFile ./scripts/greet.sh;
   };
 }
 ```
@@ -160,28 +187,42 @@ Minimal task example:
 
 While you could parse flags on your tasks as in any standard bash scripts,
 `mkTask` allows to declare a `flags` attrset to automatically parse flags from
-commands.
+commands. Each flag name becomes a bash variable in `run`.
+
+> [!NOTE]
+> In popular usage, both flags and options are generally referred to as flags.
+> Splitting them into option and flag lists would likely be confusing for some,
+> so they're all are included in the `flags` list.
+> In the documentation, _options_ will be referred to as `flag` and pure flags
+> will be referred to as `boolean flag`.
+
+### Simple flags
+
+Adding only the long form of self explanatory flags is really simple:
 
 ```nix
 { mkTask, ... }:
 {
   greet = mkTask {
     description = "Hello world with input";
-    flags = [ "name" ]
+    flags = [ "firstname" "lastname" ];
     run = ''
-      echo "Hello $name"
+      echo "Hello $firstname $lastname"
     '';
   };
 }
 ```
 
 ```bash
-$ lets greet --name Foo
-# Hello Foo
+$ lets greet --firstname Foo --lastname Bar
+# Hello Foo Bar
 ```
 
-This is nice for a quick way to parse self explanatory flags, but there's also
-another way of doing this if you want to unlock more options.
+Order doesn't not matter, but flag names must match exactly.
+
+### Parametrized flags
+
+There's also another way of doing this if you want to unlock more options:
 
 ```nix
 { mkTask, ... }:
@@ -190,11 +231,11 @@ another way of doing this if you want to unlock more options.
     description = "Hello world with input";
     flags = {
       name = {
-        description = "Hello world with input and default value"; # optional
-        short = "n";                    # optional: also accept -n
-        default = [ "$USER" "World" ];  # optional: see below
-        required = true;                # optional: error if left empty
-        type = "string";                # optional: "string" (default) or "bool"
+        description = "Hello world with input and default value"; # Added to `lets help`
+        short = "n";                    # Also accept -n as an alias to --name
+        default = [ "$USER" "World" ];  # See Default section below
+        required = true;                # Error if --name or -n is not provided
+        type = "string";                # "string" (default) or "bool"
       };
     };
     run = ''
@@ -222,10 +263,41 @@ $ lets greet
 # Hello World
 ```
 
-Each flag name becomes a bash variable in `run` (`$name`). Underscores map to
-dashes in the long form, so a `dry_run` flag exposes `--dry-run` and the variable
-`$dry_run`. A `bool` flag takes no value: its presence sets the variable to
-`true` (default `false`).
+> [!IMPORTANT]
+> Underscores map to dashes in the long form, so a `dry_run` flag exposes
+> `--dry-run` and the variable `$dry_run`.
+
+#### Short form
+
+You can add a shorthand for passing your flag, like `-n` for `--name` in the example.
+`mkTask` validates the declaration at evaluation time and fails with a clear
+message on a duplicate flag name, a duplicate `short`, a name that is not a bash
+identifier, or a `short` that is not a single letter.
+
+#### Default
+
+A value is resolved as CLI argument first, then fallbacks to `default` value if
+argument wasn't passed.
+`default` is either a single value or a list of fallbacks.
+
+* Literal: a plain string or any Nix value like `default = users.foo.name;`
+* Environment variable: an element shaped like `"$VAR"` or `"${VAR}"`
+
+Environment references are tried in the order listed, then the literal is the
+final fallback, wherever you place it.
+
+```nix
+default = [ "$USERNAME" "$USER" "Foo" ];
+default = [ "Foo" "$USERNAME" "$USER" ]; # literal position doesn't matter
+```
+
+To keep things understandable, stick with the real effective order.
+
+#### Boolean flags
+
+A `bool` flag takes no value: its presence sets the variable to `true` (default `false`).
+
+#### Putting it together
 
 You might have noticed that, since all flag parameters are optional, the first
 form `flags = [ "name" ];` is short for `flags = { name = { }; }`.
@@ -255,9 +327,12 @@ With that in mind, we could do something like:
 }
 ```
 
-Then you'd get:
+Result:
 
 ```bash
+$ lets greet
+# Hello World!
+
 $ lets greet --firstname Foo
 # Hello Foo!
 
@@ -267,30 +342,6 @@ $ lets greet --firstname Foo --uppercase
 $ lets greet --firstname Foo --lastname Bar
 # Hello Foo Bar!
 ```
-
-### Resolving a flag's value
-
-A value is resolved as **CLI argument > `default`**. `default` is either a single
-value or a list of fallbacks:
-
-* Literal: a plain string or any Nix value like `default = users.foo.name;`
-* Environment variable: an element shaped like `"$VAR"` or `"${VAR}"`
-
-Environment references are tried in the order listed, then the literal is the
-final fallback, wherever you place it.
-
-```nix
-default = [ "$USERNAME" "$USER" "Foo" ];
-default = [ "Foo" "$USERNAME" "$USER" ]; # literal position doesn't matter
-```
-
-To keep things simple and understandable, stick with the real effective order.
-
-### Flag validation
-
-`mkTask` validates the declaration at evaluation time and fails with a clear
-message on a duplicate flag name, a duplicate `short`, a name that is not a bash
-identifier, or a `short` that is not a single letter.
 
 ## Task composition
 
@@ -336,6 +387,52 @@ compose across files, which `rec` can't do):
 > or resolve the binary with `lib.getExe` (`${lib.getExe tasks.lint_nix.app}`).
 > The built-in `lint` (several tasks in one file) composes with `lib.getExe`.
 
+## Base tasks
+
+`mkTasks` ships with a small set of tasks you can reuse directly or compose in
+your own tasks:
+
+* `help` - Lists available tasks and their descriptions
+  (auto-generated from your task set).
+* `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files
+  using `shfmt` and `shellcheck`.
+* `lint_nix` - Lints Nix files with `statix` and `deadnix`.
+* `lint_nix-bash` - Lints just the bash fragments embedded in Nix files.
+* `lint` - Runs all lint tasks in this flake
+  (but you probably want to define your own).
+
+The `help` command is included by default, the other tasks are completely
+optional and can be added like this:
+
+```nix
+baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; };
+
+tasks = lets.lib.${system}.mkTasksFromDir {
+  inherit (baseTasks) lint link_nix lint_bash lint_nix-bash;
+  # ...
+};
+```
+
+Or with external task file:
+
+```nix
+tasks = {
+  inherit (baseTasks) lint_bash lint_nix;
+} // import ./tasks.nix { inherit pkgs; };
+```
+
+Or with auto-discovery
+
+```nix
+baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; };
+
+tasks = lets.lib.${system}.mkTasksFromDir {
+  inherit pkgs;
+  dir = ./tasks;
+  extraTasks = { inherit (baseTasks) lint lint_nix lint_bash lint_nix-bash; };
+};
+```
+
 ## CI integration
 
 If you wish to run a task in CI, you can just run it from the flake. It will
@@ -361,7 +458,7 @@ jobs:
         run: nix run .#lint
 ```
 
-You can see an example in the [Github CI workflow](.github/workflows/ci.yml) of this project.
+Refer to this project's [Github CI workflow](.github/workflows/ci.yml) as an example.
 
 ### GitLab CI
 
@@ -380,97 +477,3 @@ lint:
 ```
 
 You can see a complete file in the [Gitlab CI Pipeline example](.gitlab-ci.yml).
-
-## Task organization strategies
-
-You can organize tasks in several ways.
-You can start small and expands as you add more tasks.
-
-Here are some ideas:
-
-### 1) Keep tasks in `flake.nix` (really small projects)
-
-Everything is self-contained in your flake:
-
-```text
-.
-├── flake.nix
-└── scripts/
-   └── lint_js.sh
-```
-
-### 2) Put all tasks in one `tasks.nix` (simple tasks)
-
-Import an external file containing all of your tasks:
-
-```text
-.
-├── flake.nix
-├── tasks.nix
-└── scripts/
-   ├── lint_js.sh
-   └── test.sh
-```
-
-For this pattern, you can include it like:
-
-```nix
-tasks = import ./tasks.nix { inherit pkgs; };
-```
-
-Or, with base tasks:
-
-```nix
-tasks = {
-  inherit (baseTasks) lint_bash lint_nix;
-} // import ./tasks.nix { inherit pkgs; };
-```
-
-### 3) One file per task in `tasks/`
-
-```text
-.
-├── flake.nix
-└── tasks/
-   ├── lib/
-   │  ├── lint_js.sh
-   │  └── test.sh
-   ├── lint_js.nix
-   ├── test.nix
-   └── build.nix
-```
-
-Auto-discovered with [`mkTasksFromDir`](#auto-discovery):
-
-```nix
-tasks = lets.lib.${system}.mkTasksFromDir {
-  inherit pkgs;
-  dir = ./tasks;
-  extraTasks = { inherit (baseTasks) lint_bash; }; # Optional
-};
-```
-
-### 4) Use task directories (`tasks/<taskName>/default.nix`)
-
-Useful when each task has its own script, config, or fixtures.
-Also auto-discovered with [`mkTasksFromDir`](#auto-discovery).
-
-```text
-.
-├── flake.nix
-├── tasks/
-│  ├── lint_js/
-│  │  ├── default.nix
-│  │  └── lint_js.sh
-│  ├── test/
-│  │  ├── default.nix
-│  │  └── test.sh
-│  └── release/
-│     ├── default.nix
-│     ├── changelog.tpl
-│     └── release.sh
-└── scripts/
-   └── shared-lib.sh
-```
-
-With auto-discovery, you could easily mix #3 and #4.
