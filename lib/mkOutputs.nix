@@ -1,6 +1,9 @@
 {
   pkgs,
-  tasks ? import ./mkTasks.nix { inherit pkgs; },
+  tasks ? import ./mkTasksFromDir.nix {
+    inherit pkgs;
+    dir = ../tasks;
+  },
 }:
 let
   taskNames = builtins.sort builtins.lessThan (builtins.attrNames tasks);

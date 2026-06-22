@@ -5,29 +5,27 @@
 }:
 let
   inherit (pkgs) lib;
+  mkTask = import ./mkTask.nix { inherit pkgs; };
+  mkTasks = import ./mkTasks.nix;
   entries = builtins.readDir dir;
   isTask =
     name: type:
     (type == "regular" && name != "default.nix" && lib.hasSuffix ".nix" name)
     || (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"));
   taskFiles = lib.filter (name: isTask name entries.${name}) (builtins.attrNames entries);
-  tasks = lib.foldl' (
+in
+mkTasks (
+  tasks:
+  lib.foldl' (
     acc: name:
-    let
-      mkTask = import ./mkTask.nix {
-        inherit pkgs;
-        defaultName = lib.removeSuffix ".nix" name;
-      };
-    in
     acc
     // import (dir + "/${name}") {
       inherit
         pkgs
         lib
-        tasks
         mkTask
+        tasks
         ;
     }
-  ) extraTasks taskFiles;
-in
-tasks
+  ) extraTasks taskFiles
+)

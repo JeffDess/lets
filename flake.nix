@@ -15,7 +15,8 @@
       mkTasksFromDir = import ./lib/mkTasksFromDir.nix;
       mkOutputs = import ./lib/mkOutputs.nix;
       mkLets = import ./lib/mkLets.nix;
-      tasks = mkTasks { inherit pkgs; };
+      mkBaseTasks = import ./lib/mkBaseTasks.nix;
+      tasks = mkBaseTasks { inherit pkgs; };
       taskOutputs = mkOutputs { inherit pkgs tasks; };
       runTask = mkLets { inherit pkgs; };
     in
@@ -40,6 +41,7 @@
           mkOutputs
           mkLets
           mkTasksFromDir
+          mkBaseTasks
           ;
       };
 

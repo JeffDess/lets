@@ -45,18 +45,21 @@ This project aims for:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      inherit (lets.lib.${system}) mkTasks mkOutputs mkLets;
+      mkTask = lets.lib.${system}.mkTask { inherit pkgs; };
 
-      # Your project tasks (you can also import files instead, keep reading...)
-      tasks = {
-        greet = lets.mkTask {
+      # Your project tasks (you can also import files instead, keep reading...).
+      tasks = mkTasks {
+        greet = mkTask {
+          description = "Say hello";
           run = ''
             echo "Hello!"
           '';
         };
       };
 
-      taskOutputs = lets.lib.${system}.mkOutputs { inherit pkgs tasks; };
-      letsCmd = lets.lib.${system}.mkLets { inherit pkgs; };
+      taskOutputs = mkOutputs { inherit pkgs tasks; };
+      letsCmd = mkLets { inherit pkgs; };
     in
     {
       apps.${system} = taskOutputs.apps;
@@ -75,7 +78,8 @@ $ lets greet
 
 ### Demo task
 
-The repo also includes a [`demo` task](tasks/demo/default.nix) you can run directly from the flake:
+The repo also includes a [`demo` task](tasks/demo/default.nix) you can run directly
+from the flake:
 
 ```bash
 nix run github:JeffDess/lets demo
@@ -102,7 +106,7 @@ Say you created `tasks.nix` next to you flake:
 You can include it like this:
 
 ```nix
-tasks = import ./tasks.nix { inherit pkgs; };
+tasks = mkTasks (import ./tasks.nix { inherit pkgs mkTask; });
 ```
 
 ### Auto-discovery
@@ -345,11 +349,10 @@ $ lets greet --firstname Foo --lastname Bar
 
 ## Task composition
 
-A task can run another. Both styles use the injected `tasks` argument — the
-fully-resolved set, so you can reach a task from **any** file (this is how you
-compose across files, which `rec` can't do):
-
-1) Put the other apps on `PATH` with `runtimeInputs` and call them by name.
+A task can run another. Reach the other task through the injected `tasks`
+argument — the fully-resolved set, so you can compose across **any** file.
+You might use other Nix features to achieve this, but this supported form
+works everywhere:
 
 ```nix
 { tasks, mkTask, ... }:
@@ -365,32 +368,16 @@ compose across files, which `rec` can't do):
 }
 ```
 
-1) Reference the other app's binary directly via `${tasks.<name>.app}/bin/<name>`.
-
-```nix
-{ tasks, mkTask, ... }:
-{
-  check = mkTask {
-    description = "Run all checks";
-    run = ''
-      ${tasks.lint_nix.app}/bin/lint_nix
-      ${tasks.test.app}/bin/test
-    '';
-  };
-}
-```
-
 > [!NOTE]
-> A task's binary is named after its file — `tasks/lint_nix.nix` builds
-> `…/bin/lint_nix` — unless you set `name`, so the calls above just work. When a
-> single file declares several tasks they share the file name; there, set `name`
-> or resolve the binary with `lib.getExe` (`${lib.getExe tasks.lint_nix.app}`).
-> The built-in `lint` (several tasks in one file) composes with `lib.getExe`.
+> A task's binary is named after the **attribute key** it is bound under (e.g.
+> `lint_nix = mkTask { … }` builds `.../bin/lint_nix`), even when one file
+> declares several tasks. Set `name` only when you want the command to differ
+> from the key.
 
 ## Base tasks
 
-`mkTasks` ships with a small set of tasks you can reuse directly or compose in
-your own tasks:
+`lets` ships with a small set of tasks you can reuse directly or compose in
+your own tasks (build the set with `mkBaseTasks`):
 
 * `help` - Lists available tasks and their descriptions
   (auto-generated from your task set).
@@ -402,35 +389,27 @@ your own tasks:
   (but you probably want to define your own).
 
 The `help` command is included by default, the other tasks are completely
-optional and can be added like this:
+optional. Build the base set with `mkBaseTasks` and cherry-pick from it:
 
 ```nix
-baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; };
-
-tasks = lets.lib.${system}.mkTasksFromDir {
-  inherit (baseTasks) lint link_nix lint_bash lint_nix-bash;
-  # ...
-};
-```
-
-Or with external task file:
-
-```nix
-tasks = {
-  inherit (baseTasks) lint_bash lint_nix;
-} // import ./tasks.nix { inherit pkgs; };
-```
-
-Or with auto-discovery
-
-```nix
-baseTasks = lets.lib.${system}.mkTasks { inherit pkgs; };
+baseTasks = lets.lib.${system}.mkBaseTasks { inherit pkgs; };
 
 tasks = lets.lib.${system}.mkTasksFromDir {
   inherit pkgs;
   dir = ./tasks;
-  extraTasks = { inherit (baseTasks) lint lint_nix lint_bash lint_nix-bash; };
+  extraTasks = { inherit (baseTasks) lint_bash lint_nix; };
 };
+```
+
+Or merged with an external task file:
+
+```nix
+baseTasks = lets.lib.${system}.mkBaseTasks { inherit pkgs; };
+
+tasks = mkTasks (
+  { inherit (baseTasks) lint_bash lint_nix; }
+  // import ./tasks.nix { inherit pkgs mkTask; }
+);
 ```
 
 ## CI integration

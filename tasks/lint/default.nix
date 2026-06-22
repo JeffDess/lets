@@ -1,10 +1,10 @@
 {
   pkgs,
-  lib,
   mkTask,
+  tasks,
   ...
 }:
-rec {
+{
   lint_nix-bash = mkTask {
     description = "Lint bash fragments embedded in Nix files";
     runtimeInputs = [
@@ -36,9 +36,10 @@ rec {
       pkgs.fd
       pkgs.shfmt
       pkgs.shellcheck
+      tasks.lint_nix-bash.app
     ];
     run = ''
-      ${lib.getExe lint_nix-bash.app}
+      lint_nix-bash
 
       fd --hidden --exclude .git --type f --extension sh --print0 |
         xargs -0 -r sh -c 'shfmt -d -i 2 "$@"; shellcheck "$@"' _
@@ -49,9 +50,13 @@ rec {
 
   lint = mkTask {
     description = "Run all lint tasks";
+    runtimeInputs = with tasks; [
+      lint_nix.app
+      lint_bash.app
+    ];
     run = ''
-      ${lib.getExe lint_nix.app}
-      ${lib.getExe lint_bash.app}
+      lint_nix
+      lint_bash
     '';
   };
 }
