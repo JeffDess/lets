@@ -22,4 +22,4 @@ else
   target="${task}_${type}"
 fi
 
-nix run .#"$target" -- "$@"
+nix run --option warn-dirty false .#"$target" -- "$@"
