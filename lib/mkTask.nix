@@ -26,7 +26,7 @@ in
 {
   name ? null,
   description,
-  flags ? { },
+  args ? { },
   runtimeInputs ? [ ],
   run,
 }:
@@ -35,14 +35,14 @@ in
     key:
     let
       resolvedName = if name != null then name else key;
-      normFlags = if builtins.isList flags then lib.genAttrs flags (_: { }) else flags;
-      flagNames = builtins.attrNames normFlags;
+      normArgs = if builtins.isList args then lib.genAttrs args (_: { }) else args;
+      argNames = builtins.attrNames normArgs;
 
-      isBool = f: (f.type or "string") == "bool";
+      isFlag = f: (f.type or "option") == "flag";
       longOf = n: "--" + builtins.replaceStrings [ "_" ] [ "-" ] n;
 
-      # NOTE: Bind -h to --help only when no flag claims the short "h".
-      usesShortH = lib.any (n: (normFlags.${n}.short or "") == "h") flagNames;
+      # NOTE: Bind -h to --help only when no argument claims the short "h".
+      usesShortH = lib.any (n: (normArgs.${n}.short or "") == "h") argNames;
       helpPat = (if usesShortH then "" else "-h|") + "--help";
 
       valueExpr =
@@ -60,44 +60,44 @@ in
         let
           defaults = builtins.filter (el: el != "") (literalDefaults f);
         in
-        if isBool f || defaults == [ ] then "" else "  (default: ${lib.last defaults})";
+        if isFlag f || defaults == [ ] then "" else "  (default: ${lib.last defaults})";
 
       initLines = lib.concatMap (
         n:
         let
-          f = normFlags.${n};
-          value = if isBool f then lib.boolToString (f.default or false) else valueExpr f;
+          f = normArgs.${n};
+          value = if isFlag f then lib.boolToString (f.default or false) else valueExpr f;
         in
         [
           "# shellcheck disable=SC2034"
           "${n}=${value}"
         ]
-      ) flagNames;
+      ) argNames;
 
       usageLines = [
-        "printf '%s\\n' ${esc "Usage: ${resolvedName} [flags]"}"
+        "printf '%s\\n' ${esc "Usage: ${resolvedName} [options]"}"
       ]
-      ++ lib.optional (flagNames != [ ]) "printf '%s\\n' ${esc "Flags:"}"
+      ++ lib.optional (argNames != [ ]) "printf '%s\\n' ${esc "Options:"}"
       ++ map (
         n:
         let
-          f = normFlags.${n};
+          f = normArgs.${n};
           shortCol = if f ? short then "-${f.short}, " else "    ";
-          valCol = if isBool f then "" else " <value>";
+          valCol = if isFlag f then "" else " <value>";
           reqCol = if (f.required or false) then "  (required)" else "";
           line = "  ${shortCol}${longOf n}${valCol}   ${f.description or ""}${defDisplay f}${reqCol}";
         in
         "printf '%s\\n' ${esc line}"
-      ) flagNames;
+      ) argNames;
 
       caseClauses = lib.concatMap (
         n:
         let
-          f = normFlags.${n};
+          f = normArgs.${n};
           long = longOf n;
           pat = (if f ? short then "-${f.short}|" else "") + long;
         in
-        if isBool f then
+        if isFlag f then
           [
             "  ${pat})"
             "    ${n}=true"
@@ -116,19 +116,19 @@ in
             "    shift"
             "    ;;"
           ]
-      ) flagNames;
+      ) argNames;
 
       requiredChecks = lib.concatMap (
         n:
         let
-          f = normFlags.${n};
+          f = normArgs.${n};
         in
         lib.optional (
-          (f.required or false) && !isBool f
+          (f.required or false) && !isFlag f
         ) "if [ -z \"\${${n}-}\" ]; then echo \"Error: ${longOf n} is required\" >&2; exit 1; fi"
-      ) flagNames;
+      ) argNames;
 
-      flagParser = lib.concatStringsSep "\n" (
+      argParser = lib.concatStringsSep "\n" (
         initLines
         ++ [
           ""
@@ -148,7 +148,7 @@ in
           "    break"
           "    ;;"
           "  -*)"
-          "    echo \"Error: unknown flag: $1\" >&2"
+          "    echo \"Error: unknown option: $1\" >&2"
           "    exit 1"
           "    ;;"
           "  *)"
@@ -164,12 +164,12 @@ in
       # VALIDATION
       #
       occurs = x: l: builtins.length (builtins.filter (y: y == x) l);
-      shortOf = n: normFlags.${n}.short or null;
-      withShort = builtins.filter (n: shortOf n != null) flagNames;
+      shortOf = n: normArgs.${n}.short or null;
+      withShort = builtins.filter (n: shortOf n != null) argNames;
       shorts = map shortOf withShort;
       listDupNames =
-        if builtins.isList flags then lib.unique (builtins.filter (x: occurs x flags > 1) flags) else [ ];
-      badNames = builtins.filter (n: builtins.match "[a-zA-Z_][a-zA-Z0-9_]*" n == null) flagNames;
+        if builtins.isList args then lib.unique (builtins.filter (x: occurs x args > 1) args) else [ ];
+      badNames = builtins.filter (n: builtins.match "[a-zA-Z_][a-zA-Z0-9_]*" n == null) argNames;
       badShorts = builtins.filter (
         n:
         let
@@ -182,10 +182,10 @@ in
       errors =
         lib.optional (
           listDupNames != [ ]
-        ) "duplicate flag name(s): ${lib.concatStringsSep ", " listDupNames}"
+        ) "duplicate argument name(s): ${lib.concatStringsSep ", " listDupNames}"
         ++ lib.optional (
           badNames != [ ]
-        ) "invalid flag name(s) (need a bash identifier): ${lib.concatStringsSep ", " badNames}"
+        ) "invalid argument name(s) (need a bash identifier): ${lib.concatStringsSep ", " badNames}"
         ++
           lib.optional (badShorts != [ ])
             "short must be a single letter: ${
@@ -193,15 +193,15 @@ in
             }"
         ++
           lib.optional (dupShorts != [ ])
-            "duplicate short flag(s): ${lib.concatStringsSep ", " (map (s: "-${toString s}") dupShorts)}";
+            "duplicate short name(s): ${lib.concatStringsSep ", " (map (s: "-${toString s}") dupShorts)}";
     in
     lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
       inherit description;
-      flags = normFlags;
+      args = normArgs;
       app = pkgs.writeShellApplication {
         name = resolvedName;
         inherit runtimeInputs;
-        text = flagParser + "\n\n" + run;
+        text = argParser + "\n\n" + run;
       };
     };
 }

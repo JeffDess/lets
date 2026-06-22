@@ -8,7 +8,7 @@
       pkgs.zsh
       pkgs.nushell
     ];
-    flags = {
+    args = {
       locale = {
         description = "Locale used for the hello output";
         short = "l";

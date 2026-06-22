@@ -161,7 +161,7 @@ Tasks have those attributes:
 | `name` | string | No | The built binary (the command you run). Defaults to the attribute key. You rarely need to set it. |
 | `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility.  |
 | `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
-| `flags` | attrset or list | No | CLI flags parsed and passed to `run` as variables. See the [declarative flags section](#declarative-flags). |
+| `args` | attrset or list | No | CLI arguments (options and flags) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
 
 > [!IMPORTANT]
 > Use underscores in task key/names when you want multi-word commands.
@@ -187,29 +187,31 @@ Minimal task example with external script:
 }
 ```
 
-## Declarative flags
+## Declarative arguments
 
-While you could parse flags on your tasks as in any standard bash scripts,
-`mkTask` allows to declare a `flags` attrset to automatically parse flags from
-commands. Each flag name becomes a bash variable in `run`.
+While you could parse arguments in your tasks as in any standard bash script,
+`mkTask` lets you declare an `args` attrset to automatically parse them from the
+command line. Each argument name becomes a bash variable in `run`.
 
 > [!NOTE]
-> In popular usage, both flags and options are generally referred to as flags.
-> Splitting them into option and flag lists would likely be confusing for some,
-> so they're all are included in the `flags` list.
-> In the documentation, _options_ will be referred to as `flag` and pure flags
-> will be referred to as `boolean flag`.
+> An _declarative argument_ is either:
+>
+> * an _option_, which takes a value (`--name Foo`)
+> * a _flag_, which is a boolean toggle (`--dry-run`)
+>
+> Positional arguments are not handled, you can parse them normally in your script.
 
-### Simple flags
+### Simple arguments
 
-Adding only the long form of self explanatory flags is really simple:
+Adding only the long form of self explanatory options is really simple.
+By default, arguments are long form options:
 
 ```nix
 { mkTask, ... }:
 {
   greet = mkTask {
     description = "Hello world with input";
-    flags = [ "firstname" "lastname" ];
+    args = [ "firstname" "lastname" ];
     run = ''
       echo "Hello $firstname $lastname"
     '';
@@ -222,9 +224,9 @@ $ lets greet --firstname Foo --lastname Bar
 # Hello Foo Bar
 ```
 
-Order doesn't not matter, but flag names must match exactly.
+Order does not matter, but argument names must match exactly.
 
-### Parametrized flags
+### Parametrized arguments
 
 There's also another way of doing this if you want to unlock more options:
 
@@ -233,13 +235,13 @@ There's also another way of doing this if you want to unlock more options:
 {
   greet = mkTask {
     description = "Hello world with input";
-    flags = {
+    args = {
       name = {
         description = "Hello world with input and default value"; # Added to `lets help`
-        short = "n";                    # Also accept -n as an alias to --name
+        short = "n";                    # Accept -n as an alias to --name
         default = [ "$USER" "World" ];  # See Default section below
         required = true;                # Error if --name or -n is not provided
-        type = "string";                # "string" (default) or "bool"
+        type = "option";                # "option" (default) or "flag"
       };
     };
     run = ''
@@ -268,15 +270,15 @@ $ lets greet
 ```
 
 > [!IMPORTANT]
-> Underscores map to dashes in the long form, so a `dry_run` flag exposes
+> Underscores map to dashes in the long form, so a `dry_run` argument exposes
 > `--dry-run` and the variable `$dry_run`.
 
 #### Short form
 
-You can add a shorthand for passing your flag, like `-n` for `--name` in the example.
-`mkTask` validates the declaration at evaluation time and fails with a clear
-message on a duplicate flag name, a duplicate `short`, a name that is not a bash
-identifier, or a `short` that is not a single letter.
+You can add a shorthand for passing your argument, like `-n` for `--name` in
+the example. `mkTask` validates the declaration at evaluation time and fails
+with a clear message on a duplicate argument name, a duplicate `short`, a name
+that is not a bash identifier, or a `short` that is not a single letter.
 
 #### Default
 
@@ -297,15 +299,16 @@ default = [ "Foo" "$USERNAME" "$USER" ]; # literal position doesn't matter
 
 To keep things understandable, stick with the real effective order.
 
-#### Boolean flags
+#### Flags
 
-A `bool` flag takes no value: its presence sets the variable to `true` (default `false`).
+A `flag` (`type = "flag"`) takes no value: its presence sets the variable to
+`true` (default `false`).
 
 #### Putting it together
 
-You might have noticed that, since all flag parameters are optional, the first
-form `flags = [ "name" ];` is short for `flags = { name = { }; }`.
-An empty `{ }` definition is a plain `--name <value>` flag, so the two styles
+You might have noticed that, since all argument parameters are optional, the
+first form `args = [ "name" ];` is short for `args = { name = { }; }`.
+An empty `{ }` definition is a plain `--name <value>` option, so the two styles
 can be mixed this way.
 
 With that in mind, we could do something like:
@@ -315,13 +318,13 @@ With that in mind, we could do something like:
 {
   greet = mkTask {
     description = "Hello world with uppercase option";
-    flags = {
+    args = {
       firstname = { default = "World"; };
-      lastname = { };
-      uppercase = { type = "bool"; };
+      lastname = { }; # same as `lastname = { type = "option"; };`
+      uppercase = { type = "flag"; };
     };
     run = ''
-      msg="Hello $firstname''${lastname:+ $lastname!}"
+      msg="Hello $firstname''${lastname:+ $lastname}!"
       if [ "$uppercase" = true ]; then
         msg="''${msg^^}"
       fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# NOTE: `$locale` is provided by mkTask's flag-parsing
+# NOTE: `$locale` is provided by mkTask's argument-parsing
 # shellcheck disable=SC2154
 if [[ "$locale" == *.UTF-8 ]]; then
   export LC_ALL="$locale"

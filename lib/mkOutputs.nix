@@ -14,17 +14,17 @@ let
     meta = { inherit (task) description; };
   };
 
-  flagLines =
-    flags:
+  argLines =
+    args:
     map (
       fn:
       let
-        f = flags.${fn};
+        f = args.${fn};
         shortCol = if f ? short then "-${f.short}, " else "    ";
         longCol = "--" + builtins.replaceStrings [ "_" ] [ "-" ] fn;
-        valCol = if (f.type or "string") == "bool" then "" else " <value>";
+        valCol = if (f.type or "option") == "flag" then "" else " <value>";
         defCol =
-          if !(f ? default) || (f.type or "string") == "bool" then
+          if !(f ? default) || (f.type or "option") == "flag" then
             ""
           else
             let
@@ -37,7 +37,7 @@ let
         line = "      ${shortCol}${longCol}${valCol}   ${f.description or ""}${defCol}";
       in
       "printf '%s\\n' ${pkgs.lib.escapeShellArg line}"
-    ) (builtins.attrNames flags);
+    ) (builtins.attrNames args);
 
   helpLines = pkgs.lib.concatStringsSep "\n" (
     pkgs.lib.concatMap (
@@ -47,7 +47,7 @@ let
         displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
         taskLine = "printf \"  \\033[1;34m%s\\033[0m - %s\\n\" \"${displayName}\" \"${task.description}\"";
       in
-      [ taskLine ] ++ flagLines (task.flags or { })
+      [ taskLine ] ++ argLines (task.args or { })
     ) taskNames
   );
 in
