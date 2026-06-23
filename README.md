@@ -548,6 +548,42 @@ tasks = mkTasks (
 );
 ```
 
+## Editor Support
+
+Since this project is largely built with Nix and Bash, most editors will support
+those filetypes out of the box.
+
+An exception to that is the `run` task attribute, which embeds Bash syntax
+inside a Nix file. Editors backed by the tree-sitter grammar only inject
+Bash highlighting (and LSP features, through tools like
+[otter.nvim](https://github.com/jmbuhr/otter.nvim)) for a fixed set of attribute
+names. `run` is not one of them, so it stays unhighlighted by default.
+
+In Neovim, add an injection query so tree-sitter treats `run` as Bash. Create
+`~/.config/nvim/after/queries/nix/injections.scm`:
+
+```scheme
+;extends
+
+; lets: inject Bash into the task `run` attribute
+(binding
+  attrpath: (attrpath (identifier) @_path)
+  expression: [
+    (string_expression
+      ((string_fragment) @injection.content
+        (#set! injection.language "bash")))
+    (indented_string_expression
+      ((string_fragment) @injection.content
+        (#set! injection.language "bash")))
+  ]
+  (#eq? @_path "run")
+  (#set! injection.combined))
+```
+
+The `;extends` directive keeps the grammar's built-in injections and only adds
+the `run` attribute on top. For a one-off string without any setup, prefix it
+with a language hint instead: `run = /* bash */ ''…'';`.
+
 ## CI integration
 
 If you wish to run a task in CI, you can just run it from the flake. It will
