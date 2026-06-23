@@ -372,6 +372,18 @@ the example. `mkTask` validates the declaration at evaluation time and fails
 with a clear message on a duplicate argument name, a duplicate `short`, a name
 that is not a bash identifier, or a `short` that is not a single letter.
 
+#### Inline value
+
+An option's value can be passed as a separate word (`--name Foo`) or attached to
+the long form with an `=` — the _inline value_ form:
+
+```bash
+$ lets greet --name=Foo
+# Hello Foo
+```
+
+Short forms always take their value as the next word (`-n Foo`).
+
 #### Default
 
 A value is resolved as CLI argument first, then fallbacks to `default` value if
