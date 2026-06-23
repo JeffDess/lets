@@ -1,3 +1,4 @@
+---
 name: CI
 
 on:
@@ -33,6 +34,14 @@ jobs:
       - uses: ./.github/actions/setup-nix
       - name: Lint shell fragments
         run: nix run .#lint_bash
+
+  lint-editorconfig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-nix
+      - name: Lint shell fragments
+        run: nix run .#lint_editor
 
   flake-check:
     needs:

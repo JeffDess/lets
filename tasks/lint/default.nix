@@ -48,15 +48,29 @@
     '';
   };
 
+  lint_editor = mkTask {
+    description = "Lint with editorconfig-checker";
+    runtimeInputs = [
+      pkgs.editorconfig-checker
+    ];
+    run = ''
+      set -euo pipefail
+      editorconfig-checker
+      echo "✅ Editorconfig linter passed"
+    '';
+  };
+
   lint = mkTask {
     description = "Run all lint tasks";
     runtimeInputs = with tasks; [
       lint_nix.app
       lint_bash.app
+      lint_editor.app
     ];
     run = ''
       lint_nix
       lint_bash
+      lint_editor
     '';
   };
 }

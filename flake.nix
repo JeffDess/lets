@@ -3,13 +3,19 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      pre-commit-hooks,
+    }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
       mkTask = import ./lib/mkTask.nix;
       mkTasks = import ./lib/mkTasks.nix;
       mkTasksFromDir = import ./lib/mkTasksFromDir.nix;
@@ -24,6 +30,8 @@
       devShells.${system} = {
         default = pkgs.mkShell {
           packages = [ runTask ];
+          inherit shellHook;
+          buildInputs = enabledPackages;
         };
       };
 
@@ -49,15 +57,18 @@
 
       checks.${system} = {
         demo = pkgs.runCommand "check-demo" { } ''
+          # shellcheck disable=SC2154
           ${taskOutputs.packages.demo}/bin/demo
           touch "$out"
         '';
         colors = pkgs.runCommand "check-colors" { } ''
+          # shellcheck disable=SC2154
           bin=${taskOutputs.packages.colors}/bin/colors
           esc=$'\033['
           # Capture to a variable (no pipe) so the task is never killed by SIGPIPE.
           # runCommand has no tty, so color is off unless FORCE_COLOR is set.
           forced="$(FORCE_COLOR=1 "$bin")"
+
           case $forced in
           *"$esc"*) echo "✅ ANSI codes emitted when forced" ;;
           *)
@@ -65,7 +76,9 @@
             exit 1
             ;;
           esac
+
           plain="$("$bin")"
+
           case $plain in
           *"$esc"*)
             echo "❌ ANSI codes leaked when not a tty" >&2
@@ -73,6 +86,7 @@
             ;;
           *) echo "✅ plain text when not a tty" ;;
           esac
+
           touch "$out"
         '';
         lint = pkgs.runCommand "check-lint" { src = self; } ''
@@ -82,6 +96,21 @@
           ${taskOutputs.packages.lint}/bin/lint
           touch "$out"
         '';
+        pre-commit-check = pre-commit-hooks.lib.${system}.run {
+          src = ./.;
+          hooks = {
+            editorconfig-checker.enable = true;
+            convco.enable = true;
+            shellcheck.enable = true;
+            shfmt = {
+              enable = true;
+              settings = {
+                indent = 2;
+              };
+            };
+            typos.enable = true;
+          };
+        };
       };
     };
 }

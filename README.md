@@ -4,7 +4,8 @@
 > [!WARNING]
 > 🚧 This project is under active development 🚧
 >
-> While it is ready to use in its current form, it is still in an experimental phase.
+> While it is ready to use in its current form, it is still in an
+> experimental phase.
 > Use at your own risk and expect things to break.
 
 A simple task runner that combines the power of Nix and Bash.
@@ -25,14 +26,18 @@ This project aims for:
 
 ## Requirements
 
-* [Nix](https://nixos.org/download/) with [flakes](https://wiki.nixos.org/wiki/Flakes) enabled (`nix-command` + `flakes`)
+* [Nix](https://nixos.org/download/) with
+  [flakes](https://wiki.nixos.org/wiki/Flakes) enabled
+  (`nix-command` + `flakes`)
 
 ## Quickstart
 
 1. Add `lets` as an input.
-2. Define tasks in your project (and optionally reuse some [presets](#base-tasks)).
+2. Define tasks in your project (and optionally reuse some
+   [presets](#base-tasks)).
 3. Build outputs with `mkOutputs`.
-4. Add `mkLets` to your dev shell so `lets <task>` works (instead of `nix run #.<task> -- ...`).
+4. Add `mkLets` to your dev shell so `lets <task>` works (instead of
+   `nix run #.<task> -- ...`).
 
 ```nix
 {
@@ -78,8 +83,8 @@ $ lets greet
 
 ### Demo task
 
-The repo also includes a [`demo` task](tasks/demo/default.nix) you can run directly
-from the flake:
+The repo also includes a [`demo` task](tasks/demo/default.nix) you can
+run directly from the flake:
 
 ```bash
 nix run github:JeffDess/lets demo
@@ -143,7 +148,8 @@ Given this project structure:
 It discovers both layouts:
 
 * `<dir>/<name>.nix` — a single file
-* `<dir>/<name>/default.nix` — a task directory (for tasks with their own scripts/fixtures)
+* `<dir>/<name>/default.nix` — a task directory (for tasks with their
+  own scripts/fixtures)
 
 So here `lets test` and `lets release` would be automatically wired.
 
@@ -155,6 +161,7 @@ A single file may declare more than one task.
 
 Tasks have those attributes:
 
+<!-- editorconfig-checker-disable -->
 | Attribute | Type | Required | Description |
 | --- | --- | --- | --- |
 | `description` | string | Yes | Shown in `lets help`. |
@@ -162,11 +169,13 @@ Tasks have those attributes:
 | `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility.  |
 | `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
 | `args` | attrset or list | No | CLI arguments (options, flags and positionals) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
+<!-- editorconfig-checker-enable -->
 
 > [!IMPORTANT]
 > Use underscores in task key/names when you want multi-word commands.
 > So `lint_nix` will be called with `lets lint nix`
-> Dashes stay literal inside each word, so `lint_nix-bash` will be called with `lets lint nix-bash`
+> Dashes stay literal inside each word, so `lint_nix-bash` will be
+> called with `lets lint nix-bash`
 
 ## External scripts
 
@@ -213,18 +222,20 @@ Available names:
 | Styles | `bold` `dim` `italic` `underline` |
 
 * **Functions** (lowercase) exist for every color and style. They print the text
-  formatted, followed by a newline (like `echo`), and **already append the reset**
+  formatted, followed by a newline (like `echo`), and
+  **already append the reset**
   — so `blue "hi"` closes itself and there is no `reset` function to call.
 * **Merged functions** combine any style with any color as `<style>_<color>`
   (e.g. `bold_green`, `dim_cyan`, `underline_yellow`).
 * **Constants** (uppercase: `RED`, `BOLD`, …) exist for the same names. Use them
   when you assemble strings yourself — then you must close the sequence with the
-  `RESET` constant: `echo "${BLUE}hi${RESET}"`. `RESET` exists only as a constant,
-  for this manual form.
+  `RESET` constant: `echo "${BLUE}hi${RESET}"`. `RESET` exists only as
+  a constant, for this manual form.
 
 ### Color detection
 
-Formatting is emitted only when it makes sense, following the common conventions:
+Formatting is emitted only when it makes sense, following the common
+conventions:
 
 * **disabled** when stdout is not a terminal (piped or redirected), so logs and
   captured output stay clean;
@@ -237,8 +248,8 @@ When formatting is off, both the constants and the functions degrade gracefully:
 constants become empty strings and functions print plain text.
 
 > [!IMPORTANT]
-> These names are **reserved** in every task's `run`: the constants and functions
-> listed above. Avoid redefining them in your scripts.
+> These names are **reserved** in every task's `run`: the constants and
+> functions listed above. Avoid redefining them in your scripts.
 
 Here's a minimal example:
 
@@ -313,11 +324,16 @@ There's also another way of doing this if you want to unlock more options:
     description = "Hello world with input";
     args = {
       name = {
-        description = "Hello world with input and default value"; # Added to `lets help`
-        short = "n";                    # Accept -n as an alias to --name
-        default = [ "$USER" "World" ];  # See Default section below
-        required = true;                # Error if --name or -n is not provided
-        type = "option";                # "option" (default), "flag" or "positional"
+        # Added to `lets help`
+        description = "Hello world with input and default value";
+        # Accept -n as an alias to --name
+        short = "n";
+        # See Default section below
+        default = [ "$USER" "World" ];
+        # Error if --name or -n is not provided
+        required = true;
+        # "option" (default), "flag" or "positional"
+        type = "option";
       };
     };
     run = ''
@@ -557,7 +573,8 @@ jobs:
         run: nix run .#lint
 ```
 
-Refer to this project's [Github CI workflow](.github/workflows/ci.yml) as an example.
+Refer to this project's [Github CI workflow](.github/workflows/ci.yml)
+as an example.
 
 ### GitLab CI
 

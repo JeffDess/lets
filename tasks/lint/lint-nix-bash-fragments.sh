@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # Strict attr names that usually contain shell code in nixpkgs-style files.
+# editorconfig-checker-disable-next-line
 ATTR_RE='(pre[a-zA-Z0-9_]*|post[a-zA-Z0-9_]*|[a-zA-Z0-9_]*Phase|shellHook|script|buildCommand|checkPhase|installCheckPhase|text)'
 
 tmpdir="$(mktemp -d)"
@@ -22,6 +23,7 @@ fi
 extract_count=0
 
 for file in "${nix_files[@]}"; do
+  # editorconfig-checker-disable-next-line
   awk -v file="$file" -v outdir="$tmpdir" -v attr_re="$ATTR_RE" -v start_n="$extract_count" '
       function leading_ws_len(s,    m) {
         match(s, /^[ \t]*/)
@@ -36,6 +38,7 @@ for file in "${nix_files[@]}"; do
         block_line_count = 0
         block_base_indent = -1
         print "#!/usr/bin/env bash" > block_path
+        # editorconfig-checker-disable-next-line
         print "# source: " file ":" block_start " attr=" block_attr >> block_path
       }
 
@@ -77,6 +80,7 @@ for file in "${nix_files[@]}"; do
 
         if (!in_block) {
           # Match: attrName = two-single-quotes (allow whitespace)
+          # editorconfig-checker-disable-next-line
           if (line ~ "^[[:space:]]*" attr_re "[[:space:]]*=[[:space:]]*\\047\\047[[:space:]]*$") {
             attr = line
             sub(/^[[:space:]]*/, "", attr)

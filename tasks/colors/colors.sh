@@ -5,8 +5,10 @@ set -euo pipefail
 # shellcheck disable=SC2154
 
 echo "Constants:"
+# editorconfig-checker-disable
 echo "  ${BOLD}bold${RESET} ${DIM}dim${RESET} ${ITALIC}italic${RESET} ${UNDERLINE}underline${RESET}"
 echo "  ${RED}red${RESET} ${GREEN}green${RESET} ${YELLOW}yellow${RESET} ${BLUE}blue${RESET}"
+# editorconfig-checker-enable
 
 echo "Single-style functions:"
 blue "  blue text"
