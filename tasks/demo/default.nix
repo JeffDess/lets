@@ -6,6 +6,7 @@
       bash
       zsh
       nushell
+      hello
     ];
     args = {
       locale = {
