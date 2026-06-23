@@ -7,6 +7,12 @@ if [ "$#" -lt 1 ]; then
   exit 1
 fi
 
+case "$1" in
+-h | --help)
+  set -- help "${@:2}"
+  ;;
+esac
+
 is_target() {
   local t
   for t in "${TARGETS[@]}"; do

@@ -207,8 +207,9 @@ in
             printf "\033[2m-------------------------\033[0m\n\n"
             printf "\033[1;4;34mUsage\033[0m\n"
             echo "  lets <task> [args...]"
-            echo "  lets help [-t|--task <task>]   Show help for a single task"
-            echo "  lets show <task>               Show a task's usage, packages and script"
+            echo "  lets help, -h, --help    Display this help message"
+            printf '      \033[32m-t, --task <value>\033[0m   Show help for a single task\n'
+            echo "  lets show <task>         Show a task's usage, packages and script"
             printf "\n\033[1;4;34mAvailable Tasks\033[0m\n"
             ${helpLines}
             echo

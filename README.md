@@ -518,7 +518,8 @@ your own tasks (build the set with `mkBaseTasks`):
 * `help` - Lists available tasks and their descriptions
   (auto-generated from your task set). Pass `-t <task>` (or
   `--task <task>`) to print just that task's usage, e.g.
-  `lets help -t lint_nix`.
+  `lets help -t lint_nix`. `lets --help` and `lets -h` are
+  aliases for `lets help`.
 * `show <task>` - Prints a single task's usage, the packages it pulls in
   (its `runtimeInputs`) and its script with syntax highlighting, e.g.
   `lets show lint_nix`.
