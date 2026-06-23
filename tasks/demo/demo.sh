@@ -5,7 +5,7 @@ set -euo pipefail
 # NOTE: `$locale` and `$name` are provided by mkTask's argument-parsing
 echo "Hello, $name!"
 
-if [[ "$locale" == *.UTF-8 ]]; then
+if [[ $locale == *.UTF-8 ]]; then
   export LC_ALL="$locale"
 else
   export LC_ALL="${locale}.UTF-8"
