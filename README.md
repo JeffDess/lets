@@ -522,7 +522,8 @@ your own tasks (build the set with `mkBaseTasks`):
   aliases for `lets help`.
 * `show <task>` - Prints a single task's usage, the packages it pulls in
   (its `runtimeInputs`) and its script with syntax highlighting, e.g.
-  `lets show lint_nix`.
+  `lets show lint_nix`. `lets --show <task>` and `lets -s <task>` are
+  aliases for `lets show <task>`.
 * `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files
   using `shfmt` and `shellcheck`.
 * `lint_nix` - Lints Nix files with `statix` and `deadnix`.

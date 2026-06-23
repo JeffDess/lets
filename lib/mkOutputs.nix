@@ -209,7 +209,8 @@ in
             echo "  lets <task> [args...]"
             echo "  lets help, -h, --help    Display this help message"
             printf '      \033[32m-t, --task <value>\033[0m   Show help for a single task\n'
-            echo "  lets show <task>         Show a task's usage, packages and script"
+            echo "  lets show, -s, --show    Show a task's usage, packages and script"
+            printf '      \033[32m<task>\033[0m               The task to show\n'
             printf "\n\033[1;4;34mAvailable Tasks\033[0m\n"
             ${helpLines}
             echo

@@ -11,6 +11,9 @@ case "$1" in
 -h | --help)
   set -- help "${@:2}"
   ;;
+-s | --show)
+  set -- show "${@:2}"
+  ;;
 esac
 
 is_target() {
