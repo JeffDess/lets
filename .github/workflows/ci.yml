@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-nix
-      - name: Lint shell fragments
+      - name: Lint files with editorconfig-checker
         run: nix run .#lint_editor
 
   flake-check:
