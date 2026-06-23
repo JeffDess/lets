@@ -6,6 +6,7 @@
   },
 }:
 let
+  esc = pkgs.lib.escapeShellArg;
   taskNames = builtins.sort builtins.lessThan (builtins.attrNames tasks);
 
   mkApp = _name: task: {
@@ -59,16 +60,32 @@ let
     in
     map optLine optNames ++ map posLine posNames;
 
-  helpLines = pkgs.lib.concatStringsSep "\n" (
-    pkgs.lib.concatMap (
-      name:
-      let
-        task = tasks.${name};
-        displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
-        taskLine = "printf \"  \\033[1;34m%s\\033[0m - %s\\n\" \"${displayName}\" \"${task.description}\"";
-      in
-      [ taskLine ] ++ argLines (task.args or { })
+  taskBlock =
+    name:
+    let
+      task = tasks.${name};
+      displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
+      taskLine = "printf \"  \\033[1;34m%s\\033[0m - %s\\n\" \"${displayName}\" \"${task.description}\"";
+    in
+    [ taskLine ] ++ argLines (task.args or { });
+
+  helpLines = pkgs.lib.concatStringsSep "\n" (pkgs.lib.concatMap taskBlock taskNames);
+
+  taskHelp = pkgs.lib.concatStringsSep "\n" (
+    [
+      "task=\"\${task// /_}\""
+      "case \"$task\" in"
+    ]
+    ++ pkgs.lib.concatMap (
+      name: [ "${esc name})" ] ++ map (l: "  " + l) (taskBlock name) ++ [ "  ;;" ]
     ) taskNames
+    ++ [
+      "*)"
+      "  echo \"Error: unknown task: $task\" >&2"
+      "  exit 1"
+      "  ;;"
+      "esac"
+    ]
   );
 in
 {
@@ -81,10 +98,41 @@ in
         pkgs.writeShellApplication {
           name = "help";
           text = ''
+            task=""
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+              -t | --task)
+                if [ "$#" -lt 2 ]; then
+                  echo "Error: $1 requires a value" >&2
+                  exit 1
+                fi
+                task="$2"
+                shift 2
+                ;;
+              -h | --help)
+                echo "Usage: lets help [-t|--task <task>]"
+                exit 0
+                ;;
+              -*)
+                echo "Error: unknown option: $1" >&2
+                exit 1
+                ;;
+              *)
+                break
+                ;;
+              esac
+            done
+
+            if [ -n "$task" ]; then
+              ${taskHelp}
+              exit 0
+            fi
+
             printf "\n\033[1;36m lets - A Nix Task Runner\033[0m\n"
             printf "\033[2m-------------------------\033[0m\n\n"
             printf "\033[1mUsage\033[0m\n"
             echo "  lets <task> [args...]"
+            echo "  lets help [-t|--task <task>]   Show help for a single task"
             printf "\n\033[1mAvailable Tasks\033[0m\n"
             ${helpLines}
             echo

@@ -516,7 +516,9 @@ works everywhere:
 your own tasks (build the set with `mkBaseTasks`):
 
 * `help` - Lists available tasks and their descriptions
-  (auto-generated from your task set).
+  (auto-generated from your task set). Pass `-t <task>` (or
+  `--task <task>`) to print only that task's entry, e.g.
+  `lets help -t lint_nix`.
 * `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files
   using `shfmt` and `shellcheck`.
 * `lint_nix` - Lints Nix files with `statix` and `deadnix`.
