@@ -12,7 +12,7 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
       - name: Check formatting
         run: |
@@ -22,7 +22,7 @@ jobs:
   lint-nix:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
       - name: Lint Nix
         run: nix run .#lint_nix
@@ -30,7 +30,7 @@ jobs:
   lint-bash:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
       - name: Lint shell fragments
         run: nix run .#lint_bash
@@ -38,7 +38,7 @@ jobs:
   lint-editorconfig:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
       - name: Lint files with editorconfig-checker
         run: nix run .#lint_editor
@@ -51,7 +51,7 @@ jobs:
       - lint-editorconfig
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
       - name: Run flake checks
         run: nix flake check
