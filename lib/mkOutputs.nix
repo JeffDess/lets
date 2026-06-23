@@ -104,7 +104,13 @@ let
   );
 
   titleLine = t: "printf '\\033[1;4;34m%s\\033[0m\\n' ${esc t}";
-  section = title: content: [ "echo" (titleLine title) ] ++ content;
+  section =
+    title: content:
+    [
+      "echo"
+      (titleLine title)
+    ]
+    ++ content;
 
   usageSections =
     name:
@@ -118,17 +124,22 @@ let
         );
     in
     section "Usage" [ (plain "  ${name}${suffix}") ]
-    ++ pkgs.lib.optionals (s.optNames != [ ]) (section "Options" (map (detailLine "  " args) s.optNames))
-    ++ pkgs.lib.optionals (s.flagNames != [ ]) (section "Flags" (map (detailLine "  " args) s.flagNames))
-    ++ pkgs.lib.optionals (s.posNames != [ ]) (section "Arguments" (map (detailLine "  " args) s.posNames));
+    ++ pkgs.lib.optionals (s.optNames != [ ]) (
+      section "Options" (map (detailLine "  " args) s.optNames)
+    )
+    ++ pkgs.lib.optionals (s.flagNames != [ ]) (
+      section "Flags" (map (detailLine "  " args) s.flagNames)
+    )
+    ++ pkgs.lib.optionals (s.posNames != [ ]) (
+      section "Arguments" (map (detailLine "  " args) s.posNames)
+    );
 
   showLines =
     name:
     let
       task = tasks.${name};
       pnames = map (p: pkgs.lib.getName p) (task.runtimeInputs or [ ]);
-      pkgItems =
-        if pnames == [ ] then [ (plain "  (none)") ] else map (n: plain "  • ${n}") pnames;
+      pkgItems = if pnames == [ ] then [ (plain "  (none)") ] else map (n: plain "  • ${n}") pnames;
       scriptFile = pkgs.writeText "${name}-run" (task.run or "");
     in
     usageSections name
