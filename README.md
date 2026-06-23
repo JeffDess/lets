@@ -81,6 +81,15 @@ $ lets greet
 # Hello!
 ```
 
+### Usage
+
+```text
+lets <task>                     # Run task
+lets -h / --help / help         # Display help and list available tasks
+lets -s / --show / show <task>  # Display task details
+lets -v / --version             # Display version
+```
+
 ### Demo task
 
 The repo also includes a [`demo` task](tasks/demo/default.nix) you can

@@ -14,6 +14,7 @@
     }:
     let
       system = "x86_64-linux";
+      version = "0.0.1";
       pkgs = nixpkgs.legacyPackages.${system};
       inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
       mkTask = import ./lib/mkTask.nix;
@@ -24,7 +25,7 @@
       mkBaseTasks = import ./lib/mkBaseTasks.nix;
       tasks = mkBaseTasks { inherit pkgs; };
       taskOutputs = mkOutputs { inherit pkgs tasks; };
-      runTask = mkLets { inherit pkgs tasks; };
+      runTask = mkLets { inherit pkgs tasks version; };
     in
     {
       devShells.${system} = {
@@ -47,10 +48,10 @@
           mkTask
           mkTasks
           mkOutputs
-          mkLets
           mkTasksFromDir
           mkBaseTasks
           ;
+        mkLets = args: mkLets (args // { inherit version; });
       };
 
       formatter.${system} = pkgs.nixfmt-tree;

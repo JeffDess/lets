@@ -1,11 +1,17 @@
-{ pkgs, tasks }:
+{
+  pkgs,
+  tasks,
+  version,
+}:
 let
   inherit (pkgs) lib;
   targets = builtins.attrNames tasks ++ [
     "help"
     "show"
   ];
-  header = "TARGETS=(${lib.concatMapStringsSep " " lib.escapeShellArg targets})\n\n";
+  header = "TARGETS=(${
+    lib.concatMapStringsSep " " lib.escapeShellArg targets
+  })\nVERSION=${lib.escapeShellArg version}\n\n";
 in
 pkgs.writeShellApplication {
   name = "lets";
