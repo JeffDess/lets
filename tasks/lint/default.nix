@@ -7,20 +7,20 @@
 {
   lint_nix-bash = mkTask {
     description = "Lint bash fragments embedded in Nix files";
-    runtimeInputs = [
-      pkgs.findutils
-      pkgs.gawk
-      pkgs.shfmt
-      pkgs.shellcheck
+    runtimeInputs = with pkgs; [
+      findutils
+      gawk
+      shfmt
+      shellcheck
     ];
     run = builtins.readFile ./lint-nix-bash-fragments.sh;
   };
 
   lint_nix = mkTask {
     description = "Lint Nix files with statix and deadnix";
-    runtimeInputs = [
-      pkgs.statix
-      pkgs.deadnix
+    runtimeInputs = with pkgs; [
+      statix
+      deadnix
     ];
     run = ''
       statix check .
@@ -31,11 +31,11 @@
 
   lint_bash = mkTask {
     description = "Lint bash fragments in Nix files and all .sh files";
-    runtimeInputs = [
-      pkgs.bash
-      pkgs.fd
-      pkgs.shfmt
-      pkgs.shellcheck
+    runtimeInputs = with pkgs; [
+      bash
+      fd
+      shfmt
+      shellcheck
       tasks.lint_nix-bash.app
     ];
     run = ''
@@ -50,9 +50,7 @@
 
   lint_editor = mkTask {
     description = "Lint with editorconfig-checker";
-    runtimeInputs = [
-      pkgs.editorconfig-checker
-    ];
+    runtimeInputs = with pkgs; [ editorconfig-checker ];
     run = ''
       set -euo pipefail
       editorconfig-checker

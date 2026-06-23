@@ -2,11 +2,10 @@
 {
   demo = mkTask {
     description = "Demo Task: Assert hello output in bash, zsh, and nushell";
-    runtimeInputs = [
-      pkgs.hello
-      pkgs.bash
-      pkgs.zsh
-      pkgs.nushell
+    runtimeInputs = with pkgs; [
+      bash
+      zsh
+      nushell
     ];
     args = {
       locale = {
