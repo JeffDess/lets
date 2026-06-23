@@ -52,6 +52,29 @@
           ${taskOutputs.packages.demo}/bin/demo
           touch "$out"
         '';
+        colors = pkgs.runCommand "check-colors" { } ''
+          bin=${taskOutputs.packages.colors}/bin/colors
+          esc=$'\033['
+          # Capture to a variable (no pipe) so the task is never killed by SIGPIPE.
+          # runCommand has no tty, so color is off unless FORCE_COLOR is set.
+          forced="$(FORCE_COLOR=1 "$bin")"
+          case $forced in
+          *"$esc"*) echo "✅ ANSI codes emitted when forced" ;;
+          *)
+            echo "❌ expected ANSI codes with FORCE_COLOR=1" >&2
+            exit 1
+            ;;
+          esac
+          plain="$("$bin")"
+          case $plain in
+          *"$esc"*)
+            echo "❌ ANSI codes leaked when not a tty" >&2
+            exit 1
+            ;;
+          *) echo "✅ plain text when not a tty" ;;
+          esac
+          touch "$out"
+        '';
         lint = pkgs.runCommand "check-lint" { src = self; } ''
           cp -r "$src" source
           chmod -R +w source

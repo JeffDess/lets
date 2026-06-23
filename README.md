@@ -187,6 +187,81 @@ Minimal task example with external script:
 }
 ```
 
+## Text formatting
+
+Every task's `run` gets a small ANSI formatting toolkit injected automatically.
+It comes in three flavors:
+
+```bash
+# Constants (uppercase):
+echo "${BOLD}Hello${RESET} ${BLUE}World${RESET}!"
+
+# Functions (lowercase):
+green "✅ done"
+bold "Important"
+
+# Merged style + color (<style>_<color>):
+bold_blue "Heading"
+underline_red "Error"
+```
+
+Available names:
+
+| Kind | Names |
+| --- | --- |
+| Colors | `black` `red` `green` `yellow` `blue` `magenta` `cyan` `white` |
+| Styles | `bold` `dim` `italic` `underline` |
+
+* **Functions** (lowercase) exist for every color and style. They print the text
+  formatted, followed by a newline (like `echo`), and **already append the reset**
+  — so `blue "hi"` closes itself and there is no `reset` function to call.
+* **Merged functions** combine any style with any color as `<style>_<color>`
+  (e.g. `bold_green`, `dim_cyan`, `underline_yellow`).
+* **Constants** (uppercase: `RED`, `BOLD`, …) exist for the same names. Use them
+  when you assemble strings yourself — then you must close the sequence with the
+  `RESET` constant: `echo "${BLUE}hi${RESET}"`. `RESET` exists only as a constant,
+  for this manual form.
+
+### Color detection
+
+Formatting is emitted only when it makes sense, following the common conventions:
+
+* **disabled** when stdout is not a terminal (piped or redirected), so logs and
+  captured output stay clean;
+* **disabled** when `NO_COLOR` is set to a non-empty
+  value (takes precedence);
+* **forced on** when `FORCE_COLOR` is set — handy to keep colors through a pipe
+  or in tests.
+
+When formatting is off, both the constants and the functions degrade gracefully:
+constants become empty strings and functions print plain text.
+
+> [!IMPORTANT]
+> These names are **reserved** in every task's `run`: the constants and functions
+> listed above. Avoid redefining them in your scripts.
+
+Here's a minimal example:
+
+```nix
+{ mkTask, ... }:
+{
+  greet = mkTask {
+    description = "Hello world in color";
+    run = ''
+      bold_blue "Hello, World!"
+    '';
+  };
+}
+```
+
+```bash
+$ lets greet
+# Hello, World! (bold blue on a terminal)
+
+$ lets greet | cat
+# Hello, World!  (plain text when piped)
+```
+
 ## Declarative arguments
 
 While you could parse arguments in your tasks as in any standard bash script,
