@@ -175,6 +175,7 @@ in
         if isFlag f then
           [
             "  ${pat})"
+            "    # shellcheck disable=SC2034"
             "    ${n}=true"
             "    shift"
             "    ;;"
@@ -183,10 +184,12 @@ in
           [
             "  ${pat})"
             "    if [ \"$#\" -lt 2 ]; then echo \"Error: $1 requires a value\" >&2; exit 1; fi"
+            "    # shellcheck disable=SC2034"
             "    ${n}=\"$2\""
             "    shift 2"
             "    ;;"
             "  ${long}=*)"
+            "    # shellcheck disable=SC2034"
             "    ${n}=\"\${1#*=}\""
             "    shift"
             "    ;;"
