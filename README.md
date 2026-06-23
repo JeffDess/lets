@@ -59,7 +59,7 @@ This project aims for:
       };
 
       taskOutputs = mkOutputs { inherit pkgs tasks; };
-      letsCmd = mkLets { inherit pkgs; };
+      letsCmd = mkLets { inherit pkgs tasks; };
     in
     {
       apps.${system} = taskOutputs.apps;
@@ -161,7 +161,7 @@ Tasks have those attributes:
 | `name` | string | No | The built binary (the command you run). Defaults to the attribute key. You rarely need to set it. |
 | `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility.  |
 | `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
-| `args` | attrset or list | No | CLI arguments (options and flags) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
+| `args` | attrset or list | No | CLI arguments (options, flags and positionals) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
 
 > [!IMPORTANT]
 > Use underscores in task key/names when you want multi-word commands.
@@ -194,12 +194,13 @@ While you could parse arguments in your tasks as in any standard bash script,
 command line. Each argument name becomes a bash variable in `run`.
 
 > [!NOTE]
-> An _declarative argument_ is either:
+> A _declarative argument_ is one of:
 >
 > * an _option_, which takes a value (`--name Foo`)
 > * a _flag_, which is a boolean toggle (`--dry-run`)
+> * a _positional_, bound by its position on the received command
 >
-> Positional arguments are not handled, you can parse them normally in your script.
+> The `type` attribute picks which one you get (`option` by default).
 
 ### Simple arguments
 
@@ -241,7 +242,7 @@ There's also another way of doing this if you want to unlock more options:
         short = "n";                    # Accept -n as an alias to --name
         default = [ "$USER" "World" ];  # See Default section below
         required = true;                # Error if --name or -n is not provided
-        type = "option";                # "option" (default) or "flag"
+        type = "option";                # "option" (default), "flag" or "positional"
       };
     };
     run = ''
@@ -303,6 +304,47 @@ To keep things understandable, stick with the real effective order.
 
 A `flag` (`type = "flag"`) takes no value: its presence sets the variable to
 `true` (default `false`).
+
+#### Positional arguments
+
+A `positional` is bound by its place on the command line rather than by a
+`--name`, using a 1-based `index` (index 0 is the command itself). It supports
+`default` and `required` like an option, but not `short`, and indices must be
+contiguous starting at 1.
+
+```nix
+{ mkTask, ... }:
+{
+  greet = mkTask {
+    description = "Hello world with positional arguments";
+    args = {
+      name = { type = "positional"; index = 1; required = true; };
+    };
+    run = ''
+      echo "Hello $name (the rest stays in $@: $*)"
+    '';
+  };
+}
+```
+
+Options and flags are parsed first, then the leftover words fill the positionals
+in index order. Anything past the declared positionals stays in `$@`:
+
+```bash
+$ lets greet Foo Bar
+# Hello Foo (the rest stays in $@: Bar)
+
+$ lets greet -- Foo Bar # This is safer, no possible collision with sub-commands
+# Hello Foo (the rest stays in $@: Bar)
+```
+
+> [!NOTE]
+> `lets` finds where the (sub-)command name ends by matching the longest run of
+> leading words against your task names, so `lets fmt flake.nix` runs the `fmt`
+> task with `flake.nix` as a positional. For this to work, pass your tasks to
+> `mkLets` (`mkLets { inherit pkgs tasks; }`). Use `--` to force a word to be an
+> argument (`lets fmt -- nix`, even if a `fmt_nix` task exists). Options must
+> come before positionals.
 
 #### Putting it together
 

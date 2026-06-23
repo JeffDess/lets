@@ -39,7 +39,13 @@ in
       argNames = builtins.attrNames normArgs;
 
       isFlag = f: (f.type or "option") == "flag";
+      isPositional = f: (f.type or "option") == "positional";
       longOf = n: "--" + builtins.replaceStrings [ "_" ] [ "-" ] n;
+
+      optNames = builtins.filter (n: !isPositional normArgs.${n}) argNames;
+      posNames = builtins.sort (a: b: (normArgs.${a}.index or 0) < (normArgs.${b}.index or 0)) (
+        builtins.filter (n: isPositional normArgs.${n}) argNames
+      );
 
       # NOTE: Bind -h to --help only when no argument claims the short "h".
       usesShortH = lib.any (n: (normArgs.${n}.short or "") == "h") argNames;
@@ -74,10 +80,14 @@ in
         ]
       ) argNames;
 
+      posPlaceholders = lib.concatStrings (
+        map (n: if (normArgs.${n}.required or false) then " <${n}>" else " [${n}]") posNames
+      );
+
       usageLines = [
-        "printf '%s\\n' ${esc "Usage: ${resolvedName} [options]"}"
+        "printf '%s\\n' ${esc "Usage: ${resolvedName}${lib.optionalString (optNames != [ ]) " [options]"}${posPlaceholders}"}"
       ]
-      ++ lib.optional (argNames != [ ]) "printf '%s\\n' ${esc "Options:"}"
+      ++ lib.optional (optNames != [ ]) "printf '%s\\n' ${esc "Options:"}"
       ++ map (
         n:
         let
@@ -88,7 +98,17 @@ in
           line = "  ${shortCol}${longOf n}${valCol}   ${f.description or ""}${defDisplay f}${reqCol}";
         in
         "printf '%s\\n' ${esc line}"
-      ) argNames;
+      ) optNames
+      ++ lib.optional (posNames != [ ]) "printf '%s\\n' ${esc "Arguments:"}"
+      ++ map (
+        n:
+        let
+          f = normArgs.${n};
+          reqCol = if (f.required or false) then "  (required)" else "";
+          line = "  <${n}>   ${f.description or ""}${defDisplay f}${reqCol}";
+        in
+        "printf '%s\\n' ${esc line}"
+      ) posNames;
 
       caseClauses = lib.concatMap (
         n:
@@ -116,7 +136,23 @@ in
             "    shift"
             "    ;;"
           ]
-      ) argNames;
+      ) optNames;
+
+      positionalBindings = lib.concatMap (
+        n:
+        let
+          f = normArgs.${n};
+        in
+        [ "# shellcheck disable=SC2034" ]
+        ++ (
+          if (f.required or false) then
+            [
+              "if [ \"$#\" -gt 0 ]; then ${n}=\"$1\"; shift; else echo \"Error: <${n}> is required\" >&2; exit 1; fi"
+            ]
+          else
+            [ "if [ \"$#\" -gt 0 ]; then ${n}=\"$1\"; shift; fi" ]
+        )
+      ) posNames;
 
       requiredChecks = lib.concatMap (
         n:
@@ -124,7 +160,7 @@ in
           f = normArgs.${n};
         in
         lib.optional (
-          (f.required or false) && !isFlag f
+          (f.required or false) && !isFlag f && !isPositional f
         ) "if [ -z \"\${${n}-}\" ]; then echo \"Error: ${longOf n} is required\" >&2; exit 1; fi"
       ) argNames;
 
@@ -157,6 +193,8 @@ in
           "  esac"
           "done"
         ]
+        ++ lib.optional (posNames != [ ]) ""
+        ++ positionalBindings
         ++ requiredChecks
       );
 
@@ -179,6 +217,28 @@ in
       ) withShort;
       dupShorts = lib.unique (builtins.filter (s: occurs s shorts > 1) shorts);
 
+      validTypes = [
+        "option"
+        "flag"
+        "positional"
+      ];
+      badTypes = builtins.filter (
+        n: (normArgs.${n} ? type) && !(builtins.elem normArgs.${n}.type validTypes)
+      ) argNames;
+
+      # Positional-specific validation.
+      posDefs = builtins.filter (n: isPositional normArgs.${n}) argNames;
+      posMissingIndex = builtins.filter (n: !(normArgs.${n} ? index)) posDefs;
+      posBadIndex = builtins.filter (
+        n: (normArgs.${n} ? index) && !(builtins.isInt normArgs.${n}.index && normArgs.${n}.index >= 1)
+      ) posDefs;
+      posWithShort = builtins.filter (n: normArgs.${n} ? short) posDefs;
+      posIdxSorted = builtins.sort (a: b: a < b) (map (n: normArgs.${n}.index) posDefs);
+      posNotContiguous =
+        posMissingIndex == [ ]
+        && posBadIndex == [ ]
+        && posIdxSorted != lib.genList (i: i + 1) (builtins.length posDefs);
+
       errors =
         lib.optional (
           listDupNames != [ ]
@@ -193,7 +253,22 @@ in
             }"
         ++
           lib.optional (dupShorts != [ ])
-            "duplicate short name(s): ${lib.concatStringsSep ", " (map (s: "-${toString s}") dupShorts)}";
+            "duplicate short name(s): ${lib.concatStringsSep ", " (map (s: "-${toString s}") dupShorts)}"
+        ++
+          lib.optional (badTypes != [ ])
+            "invalid 'type' (allowed: ${lib.concatStringsSep ", " validTypes}): ${
+              lib.concatStringsSep ", " (map (n: "${n}=${builtins.toJSON normArgs.${n}.type}") badTypes)
+            }"
+        ++ lib.optional (
+          posMissingIndex != [ ]
+        ) "positional argument(s) missing 'index': ${lib.concatStringsSep ", " posMissingIndex}"
+        ++ lib.optional (
+          posBadIndex != [ ]
+        ) "positional 'index' must be an integer >= 1: ${lib.concatStringsSep ", " posBadIndex}"
+        ++ lib.optional (
+          posWithShort != [ ]
+        ) "positional argument(s) cannot take a 'short': ${lib.concatStringsSep ", " posWithShort}"
+        ++ lib.optional posNotContiguous "positional 'index' values must be contiguous starting at 1 (got: ${lib.concatStringsSep ", " (map toString posIdxSorted)})";
     in
     lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
       inherit description;

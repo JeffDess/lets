@@ -18,7 +18,7 @@
       mkBaseTasks = import ./lib/mkBaseTasks.nix;
       tasks = mkBaseTasks { inherit pkgs; };
       taskOutputs = mkOutputs { inherit pkgs tasks; };
-      runTask = mkLets { inherit pkgs; };
+      runTask = mkLets { inherit pkgs tasks; };
     in
     {
       devShells.${system} = {

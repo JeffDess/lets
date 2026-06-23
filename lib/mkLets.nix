@@ -1,5 +1,10 @@
-{ pkgs }:
+{ pkgs, tasks }:
+let
+  inherit (pkgs) lib;
+  targets = builtins.attrNames tasks ++ [ "help" ];
+  header = "TARGETS=(${lib.concatMapStringsSep " " lib.escapeShellArg targets})\n\n";
+in
 pkgs.writeShellApplication {
   name = "lets";
-  text = builtins.readFile ../scripts/run-task.sh;
+  text = header + builtins.readFile ../scripts/run-task.sh;
 }

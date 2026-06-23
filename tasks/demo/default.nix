@@ -14,6 +14,12 @@
         short = "l";
         default = "en_US";
       };
+      name = {
+        description = "Name to greet";
+        type = "positional";
+        index = 1;
+        default = "World";
+      };
     };
     run = builtins.readFile ./demo.sh;
   };

@@ -3,23 +3,42 @@
 set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: lets <task> [type] [-- task-args]" >&2
+  echo "Usage: lets <task> [args...]" >&2
   exit 1
 fi
 
-task="$1"
-shift
+is_target() {
+  local t
+  for t in "${TARGETS[@]}"; do
+    [ "$t" = "$1" ] && return 0
+  done
+  return 1
+}
 
-type=""
-if [ "$#" -gt 0 ] && [[ "$1" != -* ]]; then
-  type="$1"
-  shift
+target=""
+consumed=0
+candidate=""
+count=0
+for tok in "$@"; do
+  case "$tok" in
+  -*) break ;;
+  esac
+  if [ -z "$candidate" ]; then
+    candidate="$tok"
+  else
+    candidate="${candidate}_${tok}"
+  fi
+  count=$((count + 1))
+  if is_target "$candidate"; then
+    target="$candidate"
+    consumed="$count"
+  fi
+done
+
+if [ -z "$target" ]; then
+  echo "Error: unknown task: $1" >&2
+  exit 1
 fi
 
-if [ -z "$type" ]; then
-  target="$task"
-else
-  target="${task}_${type}"
-fi
-
-nix run --option warn-dirty false .#"$target" -- "$@"
+shift "$consumed"
+exec nix run --option warn-dirty false .#"$target" -- "$@"
