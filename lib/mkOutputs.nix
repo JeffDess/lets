@@ -184,6 +184,10 @@ in
                 task="$2"
                 shift 2
                 ;;
+              --task=*)
+                task="''${1#*=}"
+                shift
+                ;;
               -h | --help)
                 echo "Usage: lets help [-t|--task <task>]"
                 exit 0
