@@ -517,8 +517,11 @@ your own tasks (build the set with `mkBaseTasks`):
 
 * `help` - Lists available tasks and their descriptions
   (auto-generated from your task set). Pass `-t <task>` (or
-  `--task <task>`) to print only that task's entry, e.g.
+  `--task <task>`) to print just that task's usage, e.g.
   `lets help -t lint_nix`.
+* `show <task>` - Prints a single task's usage, the packages it pulls in
+  (its `runtimeInputs`) and its script with syntax highlighting, e.g.
+  `lets show lint_nix`.
 * `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files
   using `shfmt` and `shellcheck`.
 * `lint_nix` - Lints Nix files with `statix` and `deadnix`.
@@ -526,8 +529,9 @@ your own tasks (build the set with `mkBaseTasks`):
 * `lint` - Runs all lint tasks in this flake
   (but you probably want to define your own).
 
-The `help` command is included by default, the other tasks are completely
-optional. Build the base set with `mkBaseTasks` and cherry-pick from it:
+The `help` and `show` commands are included by default, the other tasks are
+completely optional. Build the base set with `mkBaseTasks` and cherry-pick
+from it:
 
 ```nix
 baseTasks = lets.lib.${system}.mkBaseTasks { inherit pkgs; };

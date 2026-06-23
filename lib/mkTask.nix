@@ -135,11 +135,9 @@ in
         map (n: if (normArgs.${n}.required or false) then " <${n}>" else " [${n}]") posNames
       );
 
-      usageLines = [
-        "printf '%s\\n' ${esc "Usage: ${resolvedName}${lib.optionalString (optNames != [ ]) " [options]"}${posPlaceholders}"}"
-      ]
-      ++ lib.optional (optNames != [ ]) "printf '%s\\n' ${esc "Options:"}"
-      ++ map (
+      valOptNames = builtins.filter (n: !isFlag normArgs.${n}) optNames;
+      flagNames = builtins.filter (n: isFlag normArgs.${n}) optNames;
+      usageOptLine =
         n:
         let
           f = normArgs.${n};
@@ -148,18 +146,24 @@ in
           reqCol = if (f.required or false) then "  (required)" else "";
           line = "  ${shortCol}${longOf n}${valCol}   ${f.description or ""}${defDisplay f}${reqCol}";
         in
-        "printf '%s\\n' ${esc line}"
-      ) optNames
-      ++ lib.optional (posNames != [ ]) "printf '%s\\n' ${esc "Arguments:"}"
-      ++ map (
+        "printf '%s\\n' ${esc line}";
+      usagePosLine =
         n:
         let
           f = normArgs.${n};
           reqCol = if (f.required or false) then "  (required)" else "";
           line = "  <${n}>   ${f.description or ""}${defDisplay f}${reqCol}";
         in
-        "printf '%s\\n' ${esc line}"
-      ) posNames;
+        "printf '%s\\n' ${esc line}";
+      usageLines = [
+        "printf '%s\\n' ${esc "Usage: ${resolvedName}${lib.optionalString (optNames != [ ]) " [options]"}${posPlaceholders}"}"
+      ]
+      ++ lib.optional (valOptNames != [ ]) "printf '%s\\n' ${esc "Options:"}"
+      ++ map usageOptLine valOptNames
+      ++ lib.optional (flagNames != [ ]) "printf '%s\\n' ${esc "Flags:"}"
+      ++ map usageOptLine flagNames
+      ++ lib.optional (posNames != [ ]) "printf '%s\\n' ${esc "Arguments:"}"
+      ++ map usagePosLine posNames;
 
       caseClauses = lib.concatMap (
         n:
@@ -322,7 +326,7 @@ in
         ++ lib.optional posNotContiguous "positional 'index' values must be contiguous starting at 1 (got: ${lib.concatStringsSep ", " (map toString posIdxSorted)})";
     in
     lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
-      inherit description;
+      inherit description run runtimeInputs;
       args = normArgs;
       app = pkgs.writeShellApplication {
         name = resolvedName;
