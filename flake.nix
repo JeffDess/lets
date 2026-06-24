@@ -97,6 +97,68 @@
           ${taskOutputs.packages.lint}/bin/lint
           touch "$out"
         '';
+        release-flow = pkgs.runCommand "check-release-flow" { nativeBuildInputs = [ pkgs.git ]; } ''
+          export HOME="$TMPDIR"
+          git config --global user.email ci@lets.test
+          git config --global user.name ci
+          git config --global init.defaultBranch main
+
+          mkdir repo && cd repo
+          git init -q
+          cp ${./cliff.toml} cliff.toml
+          printf '{\n  version = "1.2.3";\n}\n' >flake.nix
+          git add .
+          git commit -q -m "feat: a feature"
+          git tag -a v1.2.3 -m v1.2.3
+          git commit -q --allow-empty -m "feat: unreleased work"
+
+          head_before="$(git rev-parse HEAD)"
+          forced="$(${taskOutputs.packages.version}/bin/version minor --dry-run)"
+          case $forced in
+          *"1.2.3 -> 1.3.0"*) echo "✅ version minor --dry-run computes the bump" ;;
+          *)
+            echo "❌ version minor --dry-run output: $forced" >&2
+            exit 1
+            ;;
+          esac
+          auto="$(${taskOutputs.packages.version}/bin/version --dry-run)"
+          case $auto in
+          *"1.2.3 -> 1.3.0"*) echo "✅ version --dry-run auto-detects the bump" ;;
+          *)
+            echo "❌ version --dry-run (auto) output: $auto" >&2
+            exit 1
+            ;;
+          esac
+          if [ "$(git rev-parse HEAD)" != "$head_before" ]; then
+            echo "❌ version --dry-run mutated the repository" >&2
+            exit 1
+          fi
+
+          git checkout -q v1.2.3
+          notes="$(GITHUB_REF_NAME=v1.2.3 ${taskOutputs.packages.release}/bin/release --dry-run)"
+          case $notes in
+          *"### Features"*) echo "✅ release --dry-run renders notes" ;;
+          *)
+            echo "❌ release --dry-run output: $notes" >&2
+            exit 1
+            ;;
+          esac
+          case $notes in
+          *"## ["*)
+            echo "❌ release notes still contain a version heading" >&2
+            exit 1
+            ;;
+          *) echo "✅ release notes omit the redundant version heading" ;;
+          esac
+
+          if GITHUB_REF_NAME=v9.9.9 ${taskOutputs.packages.release}/bin/release --dry-run 2>/dev/null; then
+            echo "❌ release accepted a tag/version mismatch" >&2
+            exit 1
+          fi
+          echo "✅ release rejects tag/version mismatch"
+
+          touch "$out"
+        '';
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {
