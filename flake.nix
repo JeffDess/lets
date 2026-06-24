@@ -100,15 +100,19 @@
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {
-            editorconfig-checker.enable = true;
             convco.enable = true;
+            deadnix = {
+              enable = true;
+              settings.edit = true;
+            };
+            editorconfig-checker.enable = true;
+            nixfmt.enable = true;
             shellcheck.enable = true;
             shfmt = {
               enable = true;
-              settings = {
-                indent = 2;
-              };
+              settings.indent = 2;
             };
+            statix.enable = true;
             typos.enable = true;
           };
         };
