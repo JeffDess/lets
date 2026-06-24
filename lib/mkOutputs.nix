@@ -52,7 +52,7 @@ let
       f = args.${fn};
     in
     if (f.type or "option") == "positional" then
-      "<${fn}>"
+      "    <${fn}>"
     else
       let
         shortCol = if f ? short then "-${f.short}, " else "    ";

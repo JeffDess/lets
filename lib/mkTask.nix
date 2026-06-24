@@ -152,7 +152,7 @@ in
         let
           f = normArgs.${n};
           reqCol = if (f.required or false) then "  (required)" else "";
-          line = "  <${n}>   ${f.description or ""}${defDisplay f}${reqCol}";
+          line = "      <${n}>   ${f.description or ""}${defDisplay f}${reqCol}";
         in
         "printf '%s\\n' ${esc line}";
       usageLines = [
