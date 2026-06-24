@@ -26,6 +26,11 @@ lint-bash:
   script:
     - nix run .#lint-bash
 
+unit-tests:
+  stage: test
+  script:
+    - nix run .#test
+
 flake-check:
   stage: test
   script:

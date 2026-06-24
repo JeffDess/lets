@@ -159,6 +159,21 @@
 
           touch "$out"
         '';
+        unit =
+          pkgs.runCommand "check-unit"
+            {
+              failuresJson = builtins.toJSON (pkgs.lib.runTests (import ./tests/mkTask.nix { inherit pkgs; }));
+            }
+            ''
+              if [ "$failuresJson" = "[]" ]; then
+                echo "✅ unit tests passed"
+                touch "$out"
+              else
+                echo "❌ unit test failures:" >&2
+                printf '%s\n' "$failuresJson" >&2
+                exit 1
+              fi
+            '';
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {
