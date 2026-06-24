@@ -20,7 +20,11 @@ notes=$(git cliff --current --strip header | sed '/^## \[/d' | sed '/./,$!d')
 
 if [ "$dry_run" = true ]; then
   printf "Release %s (dry-run, nothing published)\n\n" "$tag"
-  printf "%s\n" "$notes"
+  if [ -n "$_lets_color" ]; then
+    printf "%s\n" "$notes" | glow -
+  else
+    printf "%s\n" "$notes"
+  fi
   exit 0
 fi
 

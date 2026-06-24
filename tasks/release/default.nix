@@ -8,6 +8,7 @@
       git
       git-cliff
       gh
+      glow
     ];
     args = {
       dry_run = {

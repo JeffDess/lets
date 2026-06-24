@@ -39,7 +39,12 @@ tag="v$new"
 
 if [ "$dry_run" = true ]; then
   printf "Would bump %s -> %s and tag %s\n\n" "$current" "$new" "$tag"
-  git cliff --unreleased --tag "$tag" --strip header | sed '/./,$!d'
+  notes=$(git cliff --unreleased --tag "$tag" --strip header | sed '/./,$!d')
+  if [ -n "$_lets_color" ]; then
+    printf "%s\n" "$notes" | glow -
+  else
+    printf "%s\n" "$notes"
+  fi
   exit 0
 fi
 

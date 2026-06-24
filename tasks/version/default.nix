@@ -8,6 +8,7 @@
       git
       git-cliff
       semver-tool
+      glow
     ];
     args = {
       level = {
