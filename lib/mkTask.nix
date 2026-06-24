@@ -334,6 +334,7 @@ in
       app = pkgs.writeShellApplication {
         name = resolvedName;
         inherit runtimeInputs;
+        excludeShellChecks = [ "SC2329" ];
         text = fmtPreamble + "\n\n" + argParser + "\n\n" + run;
       };
     };

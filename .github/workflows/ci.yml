@@ -43,12 +43,12 @@ jobs:
       - name: Lint files with editorconfig-checker
         run: nix run .#lint_editor
 
-  unit-tests:
+  tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
-      - name: Run unit tests
+      - name: Run unit and example tests
         run: nix run .#test
 
   flake-check:
@@ -57,7 +57,7 @@ jobs:
       - lint-nix
       - lint-bash
       - lint-editorconfig
-      - unit-tests
+      - tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -174,6 +174,53 @@
                 exit 1
               fi
             '';
+        examples =
+          pkgs.runCommand "check-examples"
+            {
+              nativeBuildInputs = [ pkgs.jq ];
+              casesJson = builtins.toJSON (import ./tests/build-examples.nix { inherit pkgs; });
+            }
+            ''
+              fail=0
+              total=0
+              report=""
+              while read -r c; do
+                total=$((total + 1))
+                name=$(jq -r '.name' <<<"$c")
+                bin=$(jq -r '.bin' <<<"$c")
+                expStatus=$(jq -r '.status' <<<"$c")
+                hasOut=$(jq -r 'if .stdout == null then "no" else "yes" end' <<<"$c")
+                expOut=$(jq -r '.stdout // ""' <<<"$c")
+                mapfile -t argv < <(jq -r '.args[]?' <<<"$c")
+                mapfile -t envv < <(jq -r '.env | to_entries[] | "\(.key)=\(.value)"' <<<"$c")
+                mapfile -t unsetv < <(jq -r '.unset[]?' <<<"$c")
+                unsetargs=()
+                for u in "''${unsetv[@]}"; do unsetargs+=(-u "$u"); done
+                if actual=$(env "''${unsetargs[@]}" "''${envv[@]}" "$bin" "''${argv[@]}" 2>/dev/null); then
+                  code=0
+                else
+                  code=$?
+                fi
+                ok=1
+                [ "$code" = "$expStatus" ] || ok=0
+                if [ "$hasOut" = yes ] && [ "$actual" != "$expOut" ]; then ok=0; fi
+                if [ "$ok" = 1 ]; then
+                  report+="  ✅ $name"$'\n'
+                else
+                  report+="  ❌ $name (exit $code, got: $actual)"$'\n'
+                  fail=1
+                fi
+              done < <(jq -c '.[]' <<<"$casesJson")
+
+              if [ "$fail" = 0 ]; then
+                report+="✅ $total example case(s) passed"$'\n'
+                printf '%s' "$report" >"$out"
+              else
+                printf '%s' "$report" >&2
+                echo "❌ example assertions failed" >&2
+                exit 1
+              fi
+            '';
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {

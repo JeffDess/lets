@@ -274,6 +274,8 @@ Here's a minimal example:
 }
 ```
 
+Full example: [`greet-color`](examples/greet-color/task.nix)
+
 ```bash
 $ lets greet
 # Hello, World! (bold blue on a terminal)
@@ -315,6 +317,8 @@ By default, arguments are long form options:
 }
 ```
 
+Full example: [`greet-args`](examples/greet-args/task.nix)
+
 ```bash
 $ lets greet --firstname Foo --lastname Bar
 # Hello Foo Bar
@@ -351,6 +355,8 @@ There's also another way of doing this if you want to unlock more options:
   };
 }
 ```
+
+Full example: [`greet-parametrized`](examples/greet-parametrized/task.nix)
 
 Then you'd get:
 
@@ -433,11 +439,13 @@ contiguous starting at 1.
       name = { type = "positional"; index = 1; required = true; };
     };
     run = ''
-      echo "Hello $name (the rest stays in $@: $*)"
+      echo "Hello $name (the rest stays in \$@: $*)"
     '';
   };
 }
 ```
+
+Full example: [`greet-positional`](examples/greet-positional/task.nix)
 
 Options and flags are parsed first, then the leftover words fill the positionals
 in index order. Anything past the declared positionals stays in `$@`:
@@ -487,6 +495,8 @@ With that in mind, we could do something like:
   };
 }
 ```
+
+Full example: [`greet-together`](examples/greet-together/task.nix)
 
 Result:
 
