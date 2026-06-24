@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
 
+export RUST_LOG="${RUST_LOG:-error}"
+
 tag="${GITHUB_REF_NAME:-}"
 if [ -z "$tag" ]; then
   tag=$(git describe --tags --exact-match HEAD 2>/dev/null || true)

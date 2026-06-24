@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
 
+export RUST_LOG="${RUST_LOG:-error}"
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
   --dry-run) dry_run=true ;;
