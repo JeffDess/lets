@@ -4,6 +4,8 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
   };
 
   outputs =
@@ -11,6 +13,7 @@
       self,
       nixpkgs,
       pre-commit-hooks,
+      flake-parts,
     }:
     let
       system = "x86_64-linux";
@@ -19,10 +22,11 @@
       inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
       mkTask = import ./lib/mkTask.nix;
       mkTasks = import ./lib/mkTasks.nix;
-      mkTasksFromDir = import ./lib/mkTasksFromDir.nix;
+      loadTasks = import ./lib/loadTasks.nix;
       mkOutputs = import ./lib/mkOutputs.nix;
       mkLets = import ./lib/mkLets.nix;
       mkBaseTasks = import ./lib/mkBaseTasks.nix;
+      mkFlake = import ./lib/mkFlake.nix;
       tasks = mkBaseTasks { inherit pkgs; };
       taskOutputs = mkOutputs { inherit pkgs tasks; };
       letsCmd = mkLets { inherit pkgs tasks version; };
@@ -64,16 +68,19 @@
             '';
       };
 
-      lib.${system} = {
+      lib = {
         inherit
           mkTask
           mkTasks
           mkOutputs
-          mkTasksFromDir
+          loadTasks
           mkBaseTasks
           ;
         mkLets = args: mkLets (args // { inherit version; });
+        mkFlake = args: mkFlake (args // { inherit version; });
       };
+
+      flakeModules.default = import ./lib/flakeModule.nix version;
 
       formatter.${system} = pkgs.nixfmt-tree;
 
@@ -302,6 +309,19 @@
                 exit 1
               fi
             '';
+        flake-parts-module =
+          let
+            fp = flake-parts.lib.mkFlake { inputs = { inherit self nixpkgs; }; } {
+              systems = [ system ];
+              imports = [ self.flakeModules.default ];
+              perSystem.lets.tasks = ./tasks;
+            };
+          in
+          pkgs.runCommand "check-flake-parts-module" { } ''
+            test -x ${fp.packages.${system}.lets}/bin/lets
+            echo "✅ flake-parts module produces the lets binary"
+            touch "$out"
+          '';
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {

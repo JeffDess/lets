@@ -1,8 +1,8 @@
 {
   pkgs,
-  tasks ? import ./mkTasksFromDir.nix {
+  tasks ? import ./loadTasks.nix {
     inherit pkgs;
-    dir = ../tasks;
+    src = ../tasks;
   },
 }:
 let

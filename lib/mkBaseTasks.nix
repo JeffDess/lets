@@ -1,5 +1,5 @@
 { pkgs }:
-import ./mkTasksFromDir.nix {
+import ./loadTasks.nix {
   inherit pkgs;
-  dir = ../tasks;
+  src = ../tasks;
 }

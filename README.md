@@ -33,11 +33,10 @@ This project aims for:
 ## Quickstart
 
 1. Add `lets` as an input.
-2. Define tasks in your project (and optionally reuse some
-   [presets](#base-tasks)).
-3. Build outputs with `mkOutputs`.
-4. Add `mkLets` to your dev shell so `lets <task>` works (instead of
-   `nix run #.<task> -- ...`).
+1. Add `lets.lib.mkFlake` to outputs with:
+   * `systems`: list the systems you want to support
+   * `tasks`: input your task definitions
+   * `nixpkgs`: so tasks resolve the same packages as the rest of your flake
 
 ```nix
 {
@@ -46,29 +45,22 @@ This project aims for:
     lets.url = "github:JeffDess/lets";
   };
 
-  outputs = { nixpkgs, lets, ... }:
-    let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      inherit (lets.lib.${system}) mkTasks mkOutputs mkLets;
-      mkTask = lets.lib.${system}.mkTask { inherit pkgs; };
+  outputs =
+    { nixpkgs, lets, ... }:
+    lets.lib.mkFlake {
+      inherit nixpkgs;
+      systems = [ "x86_64-linux" ];
 
-      # Your project tasks (you can also import files instead, keep reading...).
-      tasks = mkTasks {
-        greet = mkTask {
-          description = "Say hello";
-          run = ''
-            echo "Hello!"
-          '';
+      # Your tasks definitions
+      # It can also be a file or a directory path (see "Wiring tasks")
+      tasks =
+        { mkTask, ... }:
+        {
+          greet = mkTask {
+            description = "Say hello";
+            run = ''bold_green "Hello!"'';
+          };
         };
-      };
-
-      taskOutputs = mkOutputs { inherit pkgs tasks; };
-      letsCmd = mkLets { inherit pkgs tasks; };
-    in
-    {
-      apps.${system} = taskOutputs.apps;
-      devShells.${system}.default = pkgs.mkShell { packages = [ letsCmd ]; };
     };
 }
 ```
@@ -76,9 +68,39 @@ This project aims for:
 Then in your project:
 
 ```bash
-$ nix develop
+$ nix develop # or `direnv reload`
 $ lets greet
 # Hello!
+```
+
+> [!INFO]
+> Under the hood, `mkFlake` creates :
+>
+> * An `app` for each of your tasks, so you can `nix run .#my-task`.
+> * A dev shell containing the `lets` command, and the `lets` package
+>   for every system you list.
+
+### With flake-parts
+
+Already using [flake-parts](https://flake.parts)? Import the module and set
+`perSystem.lets.tasks` instead.
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    lets.url = "github:JeffDess/lets";
+  };
+
+  outputs =
+    inputs@{ flake-parts, lets, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [ "x86_64-linux" ];
+      imports = [ lets.flakeModules.default ];
+      perSystem.lets.tasks = ./tasks;
+    };
+}
 ```
 
 ### Usage
@@ -100,17 +122,33 @@ run directly from the flake:
 nix run github:JeffDess/lets demo
 ```
 
-## Project Structure
+## Wiring tasks
 
-The quickstart defined a tasks directly in the flake. While this could
-work if you have very few tasks to run, there are better ways to
-structure your project.
+The quickstart passed tasks inline. The `tasks` argument accepts four shapes,
+so you can pick whatever fits your preferences.
 
-### Importing Tasks
+Every shape receives the same scope: `pkgs`, `lib`, `system`, `mkTask`, `tasks`
+(for [composition](#task-composition)) and anything you add via
+[`specialArgs`](#extra-inputs).
 
-The first option is an external file with multiple tasks in it.
+### A function (inline)
 
-Say you created `tasks.nix` next to you flake:
+Keep tasks in the flake, as a function of that scope:
+
+```nix
+tasks =
+  { pkgs, mkTask, ... }:
+  {
+    greet = mkTask {
+      description = "Say hello";
+      run = ''bold_green "Hello!"'';
+    };
+  };
+```
+
+### A single file
+
+Move that same function into `tasks.nix` next to your flake:
 
 ```text
 .
@@ -118,29 +156,18 @@ Say you created `tasks.nix` next to you flake:
 └── tasks.nix
 ```
 
-You can include it like this:
-
 ```nix
-tasks = mkTasks (import ./tasks.nix { inherit pkgs mkTask; });
+tasks = ./tasks.nix;
 ```
 
-### Auto-discovery
+### A directory (auto-discovery)
 
-As you project grows, you might want a more modular approach.
-Breaking down each task in their own file keeps things tidy, but wiring each
-task by hand can be tedious.
-
-Enters auto-discovery: point `mkTasksFromDir` at a directory and every Nix file
-in it automatically becomes a task.
+As your project grows, give each task its own file and point `tasks` at the
+directory — every Nix file in it becomes a task:
 
 ```nix
-tasks = lets.lib.${system}.mkTasksFromDir {
-  inherit pkgs;
-  dir = ./tasks; # or any directory in your project
-};
+tasks = ./tasks;
 ```
-
-Given this project structure:
 
 ```text
 .
@@ -152,20 +179,18 @@ Given this project structure:
       ├── default.nix
       ├── changelog.tpl
       └── release.sh
-
 ```
 
 It discovers both layouts:
 
 * `<dir>/<name>.nix` — a single file
-* `<dir>/<name>/default.nix` — a task directory (for tasks with their
-  own scripts/fixtures)
+* `<dir>/<name>/default.nix` — a task directory (for tasks with their own
+  scripts/fixtures)
 
-So here `lets test` and `lets release` would be automatically wired.
-
-Directories without a `default.nix` (e.g. a shared `tasks/lib/`) are ignored,
-so you can keep helper scripts next to your tasks.
-A single file may declare more than one task.
+So here `lets test` and `lets release` are wired automatically. Directories
+without a `default.nix` (e.g. a shared `tasks/lib/`) are ignored, so you can
+keep helper scripts next to your tasks. A single file may declare more than one
+task.
 
 ## Defining tasks
 
@@ -187,7 +212,7 @@ Tasks have those attributes:
 > Dashes stay literal inside each word, so `lint_nix-bash` will be
 > called with `lets lint nix-bash`
 
-## External scripts
+### External scripts
 
 Task execution can be:
 
@@ -202,6 +227,49 @@ Minimal task example with external script:
   greet = mkTask {
     description = "Hello world";
     run = builtins.readFile ./scripts/greet.sh;
+  };
+}
+```
+
+### Extra inputs
+
+Tasks can use packages from any sources. `runtimeInputs` takes real derivations,
+so you can mix `pkgs`, sibling [`tasks`](#task-composition), a flake input,
+or a second nixpkgs (e.g. stable alongside unstable) in one list.
+
+Pass those extra sources once, in `specialArgs`, they are merged into
+every task's scope:
+
+> [!NOTE]
+> With the flake-parts module, set `perSystem.lets.specialArgs` instead.
+
+```nix
+# flake.nix
+lets.lib.mkFlake {
+  inherit nixpkgs;
+  systems = [ "x86_64-linux" ];
+  tasks = ./tasks;
+  specialArgs = { inherit inputs; };
+};
+```
+
+```nix
+# tasks/greet.nix
+{ pkgs, system, inputs, mkTask, tasks, ... }:
+let
+  stable = inputs.nixpkgs-stable.legacyPackages.${system};
+  foo = inputs.foo.packages.${system}.foo;
+in
+{
+  greet = mkTask {
+    description = "Hello World with multiple input sources";
+    runtimeInputs = with pkgs; [
+      hello         # from pkgs
+      stable.baz    # from alternative pkgs
+      foo           # from your flake inputs
+      tasks.bar.app # from your own tasks
+    ];
+    run = ''# Your script here'';
   };
 }
 ```
@@ -495,8 +563,7 @@ $ lets greet -- Foo Bar # This is safer, no possible collision with sub-commands
 > [!NOTE]
 > `lets` finds where the (sub-)command name ends by matching the longest run of
 > leading words against your task names, so `lets fmt flake.nix` runs the `fmt`
-> task with `flake.nix` as a positional. For this to work, pass your tasks to
-> `mkLets` (`mkLets { inherit pkgs tasks; }`). Use `--` to force a word to be an
+> task with `flake.nix` as a positional. Use `--` to force a word to be an
 > argument (`lets fmt -- nix`, even if a `fmt_nix` task exists). Options must
 > come before positionals.
 
@@ -604,29 +671,31 @@ your own tasks (build the set with `mkBaseTasks`):
   generated by `git-cliff`. Fails if the tag does not match the flake
   `version`. Pass `--dry-run` to print the notes without publishing.
 
-The `help` and `show` commands are included by default, the other tasks are
-completely optional. Build the base set with `mkBaseTasks` and cherry-pick
-from it:
+The `help` and `show` commands are included by default; the other tasks are
+completely optional. `mkBaseTasks` builds the preset set so you can cherry-pick
+from it. Make it available to your tasks through
+[`specialArgs`](#extra-inputs), then merge the presets you want alongside your
+own:
 
 ```nix
-baseTasks = lets.lib.${system}.mkBaseTasks { inherit pkgs; };
-
-tasks = lets.lib.${system}.mkTasksFromDir {
-  inherit pkgs;
-  dir = ./tasks;
-  extraTasks = { inherit (baseTasks) lint_bash lint_nix; };
+# flake.nix
+lets.lib.mkFlake {
+  inherit nixpkgs;
+  systems = [ "x86_64-linux" ];
+  specialArgs = { inherit (lets.lib) mkBaseTasks; };
+  tasks =
+    { pkgs, mkTask, mkBaseTasks, ... }:
+    let
+      base = mkBaseTasks { inherit pkgs; };
+    in
+    { inherit (base) lint_bash lint_nix; }
+    // {
+      greet = mkTask {
+        description = "Say hello";
+        run = ''bold_green "Hello!"'';
+      };
+    };
 };
-```
-
-Or merged with an external task file:
-
-```nix
-baseTasks = lets.lib.${system}.mkBaseTasks { inherit pkgs; };
-
-tasks = mkTasks (
-  { inherit (baseTasks) lint_bash lint_nix; }
-  // import ./tasks.nix { inherit pkgs mkTask; }
-);
 ```
 
 ## Shell completions
