@@ -25,12 +25,12 @@
       mkBaseTasks = import ./lib/mkBaseTasks.nix;
       tasks = mkBaseTasks { inherit pkgs; };
       taskOutputs = mkOutputs { inherit pkgs tasks; };
-      runTask = mkLets { inherit pkgs tasks version; };
+      letsCmd = mkLets { inherit pkgs tasks version; };
     in
     {
       devShells.${system} = {
         default = pkgs.mkShell {
-          packages = [ runTask ];
+          packages = [ letsCmd ];
           shellHook = ''
             ${shellHook}
             __lets_bash_version="''${BASH_VERSION:-}"
@@ -46,14 +46,15 @@
       apps.${system} = taskOutputs.apps;
 
       packages.${system} = {
-        default = runTask;
-        lets = runTask;
+        default = letsCmd;
+        lets = letsCmd;
         completions =
           pkgs.runCommand "lets-completions"
             {
               nativeBuildInputs = [ pkgs.installShellFiles ];
             }
             ''
+              # shellcheck disable=SC2154
               installShellCompletion --cmd lets \
                 --bash ${./completions/lets.bash} \
                 --zsh ${./completions/lets.zsh} \
