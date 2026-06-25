@@ -88,6 +88,28 @@
           *) echo "✅ plain text when not a tty" ;;
           esac
 
+          # Log helpers: the level word is colored by severity; the message stays
+          # plain (the reset closes before the colon).
+          for spec in "ERROR 31" "WARN 33" "INFO 32" "DEBUG 34" "TRACE 36"; do
+            level=''${spec%% *}
+            code=''${spec##* }
+            want="$esc$code""m$level$esc""0m: "
+            case $forced in
+            *"$want"*) echo "✅ $level colored ($code) when forced" ;;
+            *)
+              echo "❌ expected colored $level ($code) when forced" >&2
+              exit 1
+              ;;
+            esac
+            case $plain in
+            *"$level: "*) echo "✅ $level plain when not a tty" ;;
+            *)
+              echo "❌ expected '$level: ' in plain output" >&2
+              exit 1
+              ;;
+            esac
+          done
+
           touch "$out"
         '';
         lint = pkgs.runCommand "check-lint" { src = self; } ''

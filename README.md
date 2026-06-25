@@ -208,7 +208,7 @@ Minimal task example with external script:
 ## Text formatting
 
 Every task's `run` gets a small ANSI formatting toolkit injected automatically.
-It comes in three flavors:
+It comes in four flavors:
 
 ```bash
 # Constants (uppercase):
@@ -221,6 +221,11 @@ bold "Important"
 # Merged style + color (<style>_<color>):
 bold_blue "Heading"
 underline_red "Error"
+
+# Log helpers:
+info "listening on :8080"
+warn "low disk space"
+error "build failed"
 ```
 
 Available names:
@@ -236,6 +241,8 @@ Available names:
   — so `blue "hi"` closes itself and there is no `reset` function to call.
 * **Merged functions** combine any style with any color as `<style>_<color>`
   (e.g. `bold_green`, `dim_cyan`, `underline_yellow`).
+* **Log helpers** print a `LEVEL: message` line, with the level word colored
+  by severity (see [Logging](#logging) below).
 * **Constants** (uppercase: `RED`, `BOLD`, …) exist for the same names. Use them
   when you assemble strings yourself — then you must close the sequence with the
   `RESET` constant: `echo "${BLUE}hi${RESET}"`. `RESET` exists only as
@@ -256,9 +263,35 @@ conventions:
 When formatting is off, both the constants and the functions degrade gracefully:
 constants become empty strings and functions print plain text.
 
+### Logging
+
+Log helpers print `LEVEL: message`, with the level word colored by severity.
+They build on the color functions, so they write to **stdout** and follow the
+same color detection — `info "x" | cat` degrades to plain `INFO: x`.
+
+```bash
+error "build failed"
+warn  "deprecated flag"
+info  "listening on :8080"
+debug "cache hit"
+trace "entering handler"
+```
+
+| Helper | Level | Color |
+| --- | --- | --- |
+| `error` | `ERROR` | red |
+| `warn` | `WARN` | yellow |
+| `info` | `INFO` | green |
+| `debug` | `DEBUG` | blue |
+| `trace` | `TRACE` | cyan |
+
+Each prints the uppercased level followed by `:` and your message, e.g.
+`info "ready"` → `INFO: ready`.
+
 > [!IMPORTANT]
-> These names are **reserved** in every task's `run`: the constants and
-> functions listed above. Avoid redefining them in your scripts.
+> These names are **reserved** in every task's `run`: the constants, the color
+> and style functions, and the log helper functions listed above.
+> Avoid redefining them in your scripts.
 
 Here's a minimal example:
 

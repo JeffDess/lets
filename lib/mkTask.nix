@@ -71,7 +71,18 @@ let
     map (c: "${s}_${c}() { _lets_emit '${toString sgr.${s}};${toString sgr.${c}}' \"$@\"; }") fmtColors
   ) fmtStyles;
 
-  fmtBindings = lib.concatStringsSep "\n" (constLines ++ singleFns ++ comboFns);
+  logLevels = {
+    error = "red";
+    warn = "yellow";
+    info = "green";
+    debug = "blue";
+    trace = "cyan";
+  };
+  logFns = lib.mapAttrsToList (
+    n: color: "${n}() { printf '%s: %s\\n' \"$(${color} ${lib.toUpper n})\" \"$*\"; }"
+  ) logLevels;
+
+  fmtBindings = lib.concatStringsSep "\n" (constLines ++ singleFns ++ comboFns ++ logFns);
   fmtPreamble = builtins.readFile ../scripts/fmt.sh + "\n" + fmtBindings;
 in
 {
