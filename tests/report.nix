@@ -2,7 +2,7 @@ let
   flake = builtins.getFlake (toString ../.);
   pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
   inherit (pkgs) lib;
-  tests = import ./mkTask.nix { inherit pkgs; };
+  tests = import ./mkTask.nix { inherit pkgs; } // import ./mkCompletions.nix { inherit pkgs; };
   cases = lib.filterAttrs (n: _: lib.hasPrefix "test" n) tests;
 in
 lib.mapAttrsToList (name: t: {

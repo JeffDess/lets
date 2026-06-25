@@ -87,6 +87,7 @@ $ lets greet
 lets <task>                     # Run task
 lets -h / --help / help         # Display help and list available tasks
 lets -s / --show / show <task>  # Display task details
+lets -c / --completions <shell> # Print a shell completion script
 lets -v / --version             # Display version
 ```
 
@@ -627,6 +628,99 @@ tasks = mkTasks (
   // import ./tasks.nix { inherit pkgs mkTask; }
 );
 ```
+
+## Shell completions
+
+Completions cover the `lets` flags and options, every task (including nested
+ones), each task's options and flags, and the task name expected by `show` and
+`help --task`. Supported shells are: `bash`, `zsh`, `fish` and `nushell`.
+
+### Install
+
+The `completions` package is project-agnostic — it drops the functions on the
+standard search paths (`share/zsh/site-functions`, …), so bash/zsh/fish load
+them automatically.
+
+#### NixOS / home-manager
+
+Add `lets` as an input to your config flake (i.e. system, not project flake):
+
+```nix
+inputs.lets.url = "github:JeffDess/lets";
+```
+
+Then install the `completions` package. With NixOS:
+
+```nix
+{ inputs, pkgs, ... }:
+{
+  programs.zsh.enable = true;
+  environment.systemPackages = [
+    inputs.lets.packages.${pkgs.system}.completions
+  ];
+}
+```
+
+Alternatively, with home-manager:
+
+```nix
+{ inputs, pkgs, ... }:
+{
+  programs.zsh.enable = true;
+  home.packages = [ inputs.lets.packages.${pkgs.system}.completions ];
+}
+```
+
+And for nushell:
+
+```nix
+{ inputs, pkgs, ... }:
+let
+  completions = inputs.lets.packages.${pkgs.system}.completions;
+in
+{
+  programs.nushell.extraConfig = ''
+    source ${completions}/share/lets/completions/lets.nu
+  '';
+}
+```
+
+#### Nix Profile
+
+If you don't want to use a declarative config:
+
+`nix profile install github:JeffDess/lets#completions`.
+
+> [!TIP]
+> You can test without installing anything, for instance with zsh, just run:
+> `source <(lets -c zsh)`
+> Completion will be added to your current shell only
+
+#### Without the package
+
+Save the function into the directory your shell autoloads completions from:
+
+```bash
+# bash-completion autoloads this directory
+lets -c bash > ~/.local/share/bash-completion/completions/lets
+```
+
+```zsh
+# any directory on your $fpath works
+lets -c zsh > ~/.config/zsh/completions/_lets
+```
+
+```fish
+lets -c fish > ~/.config/fish/completions/lets.fish
+```
+
+```nu
+# nushell has no autoload directory: save it, then source from config.nu
+lets -c nushell | save -f ~/.config/nushell/lets.nu
+source ~/.config/nushell/lets.nu
+```
+
+Your completion file doesn't need to be regenerated when your tasks change.
 
 ## Editor Support
 

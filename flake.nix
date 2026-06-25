@@ -31,7 +31,14 @@
       devShells.${system} = {
         default = pkgs.mkShell {
           packages = [ runTask ];
-          inherit shellHook;
+          shellHook = ''
+            ${shellHook}
+            __lets_bash_version="''${BASH_VERSION:-}"
+            if [ -n "$__lets_bash_version" ] && type complete >/dev/null 2>&1; then
+              # shellcheck disable=SC1091
+              source ${taskOutputs.completionScripts.bash}
+            fi
+          '';
           buildInputs = enabledPackages;
         };
       };
@@ -41,6 +48,19 @@
       packages.${system} = {
         default = runTask;
         lets = runTask;
+        completions =
+          pkgs.runCommand "lets-completions"
+            {
+              nativeBuildInputs = [ pkgs.installShellFiles ];
+            }
+            ''
+              installShellCompletion --cmd lets \
+                --bash ${./completions/lets.bash} \
+                --zsh ${./completions/lets.zsh} \
+                --fish ${./completions/lets.fish}
+              install -Dm644 ${./completions/lets.nu} \
+                "$out/share/lets/completions/lets.nu"
+            '';
       };
 
       lib.${system} = {
@@ -184,7 +204,11 @@
         unit =
           pkgs.runCommand "check-unit"
             {
-              failuresJson = builtins.toJSON (pkgs.lib.runTests (import ./tests/mkTask.nix { inherit pkgs; }));
+              failuresJson = builtins.toJSON (
+                pkgs.lib.runTests (
+                  import ./tests/mkTask.nix { inherit pkgs; } // import ./tests/mkCompletions.nix { inherit pkgs; }
+                )
+              );
             }
             ''
               if [ "$failuresJson" = "[]" ]; then
@@ -243,6 +267,40 @@
                 exit 1
               fi
             '';
+        completions =
+          let
+            fixtureLets = import ./tests/fixture-lets.nix { inherit pkgs; };
+            L = "${fixtureLets}/bin/lets";
+          in
+          pkgs.runCommand "check-completions"
+            {
+              nativeBuildInputs = [
+                pkgs.bashInteractive
+                pkgs.zsh
+                pkgs.fish
+                pkgs.nushell
+              ];
+            }
+            ''
+              export HOME="$TMPDIR"
+              fail=0
+
+              echo "bash"
+              bash ${./tests/bash-complete.sh} ${L} ${./completions/lets.bash} || fail=1
+              echo "zsh"
+              zsh ${./tests/zsh-complete.zsh} ${L} ${./completions/lets.zsh} || fail=1
+              echo "fish"
+              fish ${./tests/fish-complete.fish} ${L} ${./completions/lets.fish} || fail=1
+              echo "nushell"
+              bash ${./tests/nu-complete.sh} ${L} ${./completions/lets.nu} || fail=1
+
+              if [ "$fail" = 0 ]; then
+                touch "$out"
+              else
+                echo "❌ completion assertions failed" >&2
+                exit 1
+              fi
+            '';
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {
@@ -253,10 +311,14 @@
             };
             editorconfig-checker.enable = true;
             nixfmt.enable = true;
-            shellcheck.enable = true;
+            shellcheck = {
+              enable = true;
+              excludes = [ "\\.zsh$" ];
+            };
             shfmt = {
               enable = true;
               settings.indent = 2;
+              excludes = [ "\\.zsh$" ];
             };
             statix.enable = true;
             typos.enable = true;

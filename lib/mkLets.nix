@@ -9,9 +9,10 @@ let
     "help"
     "show"
   ];
+  comp = import ./mkCompletions.nix { inherit pkgs; } { inherit tasks; };
   header = "TARGETS=(${
     lib.concatMapStringsSep " " lib.escapeShellArg targets
-  })\nVERSION=${lib.escapeShellArg version}\n\n";
+  })\nVERSION=${lib.escapeShellArg version}\n${comp.baked}\n\n";
 in
 pkgs.writeShellApplication {
   name = "lets";

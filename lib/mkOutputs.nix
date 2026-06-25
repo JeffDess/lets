@@ -9,6 +9,13 @@ let
   esc = pkgs.lib.escapeShellArg;
   taskNames = builtins.sort builtins.lessThan (builtins.attrNames tasks);
 
+  completionScripts = {
+    bash = ../completions/lets.bash;
+    zsh = ../completions/lets.zsh;
+    fish = ../completions/lets.fish;
+    nushell = ../completions/lets.nu;
+  };
+
   mkApp = _name: task: {
     type = "app";
     program = pkgs.lib.getExe task.app;
@@ -215,6 +222,8 @@ in
             printf '      \033[32m-t, --task <value>\033[0m   Show help for a single task\n'
             echo "  lets show, -s, --show    Show a task's usage, packages and script"
             printf '      \033[32m<task>\033[0m               The task to show\n'
+            echo "  lets -c, --completions   Print a shell completion script"
+            printf '      \033[32m<shell>\033[0m              bash, zsh, fish or nushell\n'
             echo "  lets -v, --version       Show version, description and repository"
             printf "\n\033[1;4;34mAvailable Tasks\033[0m\n"
             ${helpLines}
@@ -247,5 +256,38 @@ in
         description = "Show a task's usage, packages and script";
       };
     };
+
+    completions = {
+      type = "app";
+      program = "${
+        pkgs.writeShellApplication {
+          name = "completions";
+          runtimeInputs = [ pkgs.coreutils ];
+          text = ''
+            shell="''${1:-}"
+            case "$shell" in
+            bash) cat ${completionScripts.bash} ;;
+            zsh) cat ${completionScripts.zsh} ;;
+            fish) cat ${completionScripts.fish} ;;
+            nu | nushell) cat ${completionScripts.nushell} ;;
+            -h | --help) echo "Usage: lets completions <bash|zsh|fish|nushell>" ;;
+            "")
+              echo "Error: missing shell (bash, zsh, fish or nushell)" >&2
+              exit 1
+              ;;
+            *)
+              echo "Error: unknown shell: $shell (expected bash, zsh, fish or nushell)" >&2
+              exit 1
+              ;;
+            esac
+          '';
+        }
+      }/bin/completions";
+      meta = {
+        description = "Print the shell completion script for the given shell";
+      };
+    };
   };
+
+  inherit completionScripts;
 }
