@@ -5,7 +5,6 @@
   specialArgs ? { },
   version ? "0.0.0",
   overlays ? [ ],
-  devShell ? { },
 }:
 let
   eachSystem =
@@ -38,9 +37,23 @@ let
         inherit pkgs version;
         tasks = taskSet;
       };
+      letsShell = pkgs.mkShell {
+        packages = [ letsCmd ];
+        shellHook = ''
+          __lets_bash_version="''${BASH_VERSION:-}"
+          if [ -n "$__lets_bash_version" ] && type complete >/dev/null 2>&1; then
+            # shellcheck disable=SC1091
+            source ${out.completionScripts.bash}
+          fi
+        '';
+      };
     in
     {
-      inherit pkgs out letsCmd;
+      inherit
+        out
+        letsCmd
+        letsShell
+        ;
     };
 
   built = eachSystem perSystem;
@@ -58,22 +71,7 @@ in
   ) built;
 
   devShells = builtins.mapAttrs (_system: p: {
-    default = p.pkgs.mkShell (
-      {
-        packages = [ p.letsCmd ] ++ (devShell.packages or [ ]);
-        shellHook = ''
-          ${devShell.shellHook or ""}
-          __lets_bash_version="''${BASH_VERSION:-}"
-          if [ -n "$__lets_bash_version" ] && type complete >/dev/null 2>&1; then
-            # shellcheck disable=SC1091
-            source ${p.out.completionScripts.bash}
-          fi
-        '';
-      }
-      // removeAttrs devShell [
-        "packages"
-        "shellHook"
-      ]
-    );
+    default = p.letsShell;
+    lets = p.letsShell;
   }) built;
 }

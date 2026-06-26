@@ -33,10 +33,12 @@ This project aims for:
 ## Quickstart
 
 1. Add `lets` as an input.
-1. Add `lets.lib.mkFlake` to outputs with:
+1. Define a flake variable with `lets.lib.mkFlake` providing:
    * `systems`: list the systems you want to support
    * `tasks`: input your task definitions
    * `nixpkgs`: so tasks resolve the same packages as the rest of your flake
+1. Inherit packages and apps from the flake variable
+1. Pull the `lets` shell into your devShell via `inputsFrom`
 
 ```nix
 {
@@ -47,20 +49,29 @@ This project aims for:
 
   outputs =
     { nixpkgs, lets, ... }:
-    lets.lib.mkFlake {
-      inherit nixpkgs;
-      systems = [ "x86_64-linux" ];
+    let
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      letsFlake = lets.lib.mkFlake {
+        inherit nixpkgs;
+        systems = [ "x86_64-linux" ];
 
-      # Your task definitions
-      # It can also be a file or a directory path (see "Wiring tasks")
-      tasks =
-        { mkTask, ... }:
-        {
-          greet = mkTask {
-            description = "Say hello";
-            run = ''bold_green "Hello!"'';
+        # Your task definitions
+        # It can also be a file or a directory path (see "Wiring tasks")
+        tasks =
+          { mkTask, ... }:
+          {
+            greet = mkTask {
+              description = "Say hello";
+              run = ''bold_green "Hello!"'';
+            };
           };
-        };
+      };
+    in
+    {
+      inherit (letsFlake) apps packages;
+      devShells.x86_64-linux.default = pkgs.mkShell {
+        inputsFrom = [ letsFlake.devShells.x86_64-linux.lets ];
+      };
     };
 }
 ```
@@ -98,7 +109,14 @@ Already using [flake-parts](https://flake.parts)? Import the module and set
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [ "x86_64-linux" ];
       imports = [ lets.flakeModules.default ];
-      perSystem.lets.tasks = ./tasks;
+      perSystem =
+        { config, pkgs, ... }:
+        {
+          lets.tasks = ./tasks;
+          devShells.default = pkgs.mkShell {
+            inputsFrom = [ config.lets.devShell ];
+          };
+        };
     };
 }
 ```
