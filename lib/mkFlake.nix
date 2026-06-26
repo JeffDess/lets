@@ -21,9 +21,14 @@ let
     system:
     let
       pkgs = import nixpkgs { inherit system overlays; };
+      baseTasks = import ./mkBaseTasks.nix { inherit pkgs; };
       taskSet = import ./loadTasks.nix {
-        inherit pkgs system specialArgs;
+        inherit pkgs system;
         src = tasks;
+        specialArgs = {
+          inherit baseTasks;
+        }
+        // specialArgs;
       };
       out = import ./mkOutputs.nix {
         inherit pkgs;

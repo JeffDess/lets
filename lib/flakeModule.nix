@@ -10,10 +10,14 @@ version:
     }:
     let
       cfg = config.lets;
+      baseTasks = import ./mkBaseTasks.nix { inherit pkgs; };
       taskSet = import ./loadTasks.nix {
         inherit pkgs system;
         src = cfg.tasks;
-        inherit (cfg) specialArgs;
+        specialArgs = {
+          inherit baseTasks;
+        }
+        // cfg.specialArgs;
       };
       out = import ./mkOutputs.nix {
         inherit pkgs;
