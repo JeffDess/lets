@@ -736,20 +736,16 @@ matter the project it runs in.
 
 ### The task module
 
-A library exposes its tasks as a plain function of the scope, the very
-shape the [`tasks` argument](#wiring-tasks) already accepts:
+A library exposes its tasks as a plain function of the scope, you define it just
+[as you would normally](#wiring-tasks):
 
 ```nix
-# library: lets-tasks.nix
+# library: tasks.nix
 { mkTask, ... }:
 {
-  deploy = mkTask {
-    description = "Deploy the app";
-    run = ''echo "deploying"'';
-  };
-  migrate = mkTask {
-    description = "Run database migrations";
-    run = ''echo "migrating"'';
+  share = mkTask {
+    description = "Task from shared library";
+    run = ''bold_green "Hello from shared library!"'';
   };
 }
 ```
@@ -757,56 +753,89 @@ shape the [`tasks` argument](#wiring-tasks) already accepts:
 ### Publishing the library flake
 
 The library wires those tasks for itself with `mkFlake` (so it is runnable
-on its own with `lets deploy`), then re-exports the module as an extra output
-so projects can reach it:
+on its own with `lets share`), then re-exports the module and lets library as
+extra outputs, so projects can reach it:
 
 ```nix
 # library: flake.nix
-outputs =
-  { nixpkgs, lets, ... }:
-  let
-    letsTasks = import ./lets-tasks.nix;
-  in
-  lets.lib.mkFlake {
-    inherit nixpkgs;
-    systems = [ "x86_64-linux" ];
-    tasks = letsTasks;
-  }
-  // {
-    inherit letsTasks;
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    lets.url = "github:JeffDess/lets";
+    lets.inputs.nixpkgs.follows = "nixpkgs";
   };
+
+  outputs =
+    { nixpkgs, lets, ... }:
+    let
+      letsTasks = import ./tasks.nix;
+    in
+    lets.lib.mkFlake {
+      inherit nixpkgs;
+      systems = [ "x86_64-linux" ];
+      tasks = letsTasks;
+    }
+    // {
+      inherit letsTasks;
+      inherit (lets) lib;
+    };
+}
 ```
 
 ### Consuming it
 
-A project adds the library as an input (here `tasklib`) and merges its
-module into the project's own `tasks` function. Local keys win on conflict:
+A project adds the library as an input and merges its module into the project's
+own `tasks` function. Local keys win on conflict.
+
+I have set up [lets-demo-lib](https://github.com/JeffDess/lets-demo-lib) as an
+example, but you need to point `inputs.lets.url` to your own repo:
 
 ```nix
 # project: flake.nix
-tasks =
-  scope:
-  (tasklib.letsTasks scope)
-  // {
-    build = scope.mkTask {
-      description = "Build the project";
-      run = ''echo "building"'';
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    lets = {
+      url = "github:JeffDess/lets-demo-lib"; # Point to your own repo
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
+
+  outputs = { nixpkgs, lets, ... } :
+    let
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      letsFlake = lets.lib.mkFlake {
+        inherit nixpkgs;
+        systems = [ "x86_64-linux" ];
+        tasks =
+          scope:
+          (lets.letsTasks scope)
+          // {
+            greet = scope.mkTask {
+              description = "Task from local project";
+              run = ''bold_blue "Hello from local task!"'';
+            };
+          };
+      };
+    in {
+      inherit (letsFlake) apps packages;
+      devShells.x86_64-linux.default = pkgs.mkShell {
+        inputsFrom = [ letsFlake.devShells.x86_64-linux.lets ];
+      };
+    };
+}
 ```
 
-Now `lets deploy`, `lets migrate` and `lets build` all run in the project,
-show up in `lets help`, and get shell completions with no duplication.
-They also compose through the [`tasks` fixpoint](#task-composition), across
-the library/project boundary.
+Now `lets share`, `lets greet` all run in the project, show up in `lets help`,
+and get shell completions with no duplication. They also compose through
+the [`tasks` fixpoint](#task-composition), across the library/project boundary.
 
-Again, because the project consumes only the `letsTasks` function
-(not `tasklib`'s built outputs), the library's own `nixpkgs` builds nothing
-downstream. Point it at yours so the lock file stays tidy:
+```bash
+$ lets greet
+# Hello from local task!
 
-```nix
-# project: flake.nix
-inputs.tasklib.inputs.nixpkgs.follows = "nixpkgs";
+$ lets share
+# Hello from shared library!
 ```
 
 ### Cherry-picking
@@ -818,9 +847,9 @@ Pull in only the tasks you want, the same way you cherry-pick
 # project: flake.nix
 tasks =
   scope:
-  { inherit (tasklib.letsTasks scope) deploy; }
+  { inherit (lets.letsTasks scope) share; }
   // {
-    build = scope.mkTask { /* ... */ };
+    greet = scope.mkTask { /* ... */ };
   };
 ```
 
@@ -834,11 +863,11 @@ library can pre-build with `lets.lib.loadTasks` and export that per system:
 # library: flake.nix (per-system output)
 letsTasks = lets.lib.loadTasks {
   pkgs = nixpkgs.legacyPackages.${system};
-  src = ./lets-tasks.nix;
+  src = ./tasks.nix;
 };
 ```
 
-Projects then merge `tasklib.letsTasks.${system}` directly.
+Projects then merge `lets.letsTasks.${system}` directly.
 The trade-off is that those tasks are frozen to the library's `nixpkgs`,
 so a project on a different `nixpkgs` gets a mixed closure.
 
