@@ -51,7 +51,7 @@ This project aims for:
       inherit nixpkgs;
       systems = [ "x86_64-linux" ];
 
-      # Your tasks definitions
+      # Your task definitions
       # It can also be a file or a directory path (see "Wiring tasks")
       tasks =
         { mkTask, ... }:
@@ -73,7 +73,7 @@ $ lets greet
 # Hello!
 ```
 
-> [!INFO]
+> [!NOTE]
 > Under the hood, `mkFlake` creates :
 >
 > * An `app` for each of your tasks, so you can `nix run .#my-task`.
@@ -163,7 +163,7 @@ tasks = ./tasks.nix;
 ### A directory (auto-discovery)
 
 As your project grows, give each task its own file and point `tasks` at the
-directory — every Nix file in it becomes a task:
+directory: every Nix file in it becomes a task:
 
 ```nix
 tasks = ./tasks;
@@ -183,8 +183,8 @@ tasks = ./tasks;
 
 It discovers both layouts:
 
-* `<dir>/<name>.nix` — a single file
-* `<dir>/<name>/default.nix` — a task directory (for tasks with their own
+* `<dir>/<name>.nix`: a single file
+* `<dir>/<name>/default.nix`: a task directory (for tasks with their own
   scripts/fixtures)
 
 So here `lets test` and `lets release` are wired automatically. Directories
@@ -306,14 +306,14 @@ Available names:
 
 * **Functions** (lowercase) exist for every color and style. They print the text
   formatted, followed by a newline (like `echo`), and
-  **already append the reset**
-  — so `blue "hi"` closes itself and there is no `reset` function to call.
+  **already append the reset**, so `blue "hi"` closes itself and there is
+  no `reset` function to call.
 * **Merged functions** combine any style with any color as `<style>_<color>`
   (e.g. `bold_green`, `dim_cyan`, `underline_yellow`).
 * **Log helpers** print a `LEVEL: message` line, with the level word colored
   by severity (see [Logging](#logging) below).
 * **Constants** (uppercase: `RED`, `BOLD`, …) exist for the same names. Use them
-  when you assemble strings yourself — then you must close the sequence with the
+  when you assemble strings yourself, then you must close the sequence with the
   `RESET` constant: `echo "${BLUE}hi${RESET}"`. `RESET` exists only as
   a constant, for this manual form.
 
@@ -326,8 +326,8 @@ conventions:
   captured output stay clean;
 * **disabled** when `NO_COLOR` is set to a non-empty
   value (takes precedence);
-* **forced on** when `FORCE_COLOR` is set — handy to keep colors through a pipe
-  or in tests.
+* **forced on** when `FORCE_COLOR` is set (handy to keep colors through a pipe
+  or in tests).
 
 When formatting is off, both the constants and the functions degrade gracefully:
 constants become empty strings and functions print plain text.
@@ -336,7 +336,7 @@ constants become empty strings and functions print plain text.
 
 Log helpers print `LEVEL: message`, with the level word colored by severity.
 They build on the color functions, so they write to **stdout** and follow the
-same color detection — `info "x" | cat` degrades to plain `INFO: x`.
+same color detection: `info "x" | cat` degrades to plain `INFO: x`.
 
 ```bash
 error "build failed"
@@ -492,7 +492,7 @@ that is not a bash identifier, or a `short` that is not a single letter.
 #### Inline value
 
 An option's value can be passed as a separate word (`--name Foo`) or attached to
-the long form with an `=` — the _inline value_ form:
+the long form with an `=` (the _inline value_ form):
 
 ```bash
 $ lets greet --name=Foo
@@ -618,7 +618,7 @@ $ lets greet --firstname Foo --lastname Bar
 ## Task composition
 
 A task can run another. Reach the other task through the injected `tasks`
-argument — the fully-resolved set, so you can compose across **any** file.
+argument, the fully-resolved set, so you can compose across **any** file.
 You might use other Nix features to achieve this, but this supported form
 works everywhere:
 
@@ -703,6 +703,127 @@ in the presets you want:
 { baseTasks, ... }: { inherit (baseTasks) lint_nix version release; }
 ```
 
+## Sharing tasks across projects
+
+Tasks compose across files, but they also compose across **flakes**! A shared
+"task library" flake can sit between `lets` and your projects, so several
+projects run your favorite tasks with no copy-paste or out-of-sync scripts.
+
+![lets feeds your task library, which feeds your projects](img/task_library.svg)
+
+A task module is just a function, when a project pulls it in, the tasks are
+rebuilt with the project's own `pkgs` and `mkTask`, so the library's `nixpkgs`
+never leaks downstream. Each task keeps its exact, reproducible toolchain, no
+matter the project it runs in.
+
+### The task module
+
+A library exposes its tasks as a plain function of the scope, the very
+shape the [`tasks` argument](#wiring-tasks) already accepts:
+
+```nix
+# library: lets-tasks.nix
+{ mkTask, ... }:
+{
+  deploy = mkTask {
+    description = "Deploy the app";
+    run = ''echo "deploying"'';
+  };
+  migrate = mkTask {
+    description = "Run database migrations";
+    run = ''echo "migrating"'';
+  };
+}
+```
+
+### Publishing the library flake
+
+The library wires those tasks for itself with `mkFlake` (so it is runnable
+on its own with `lets deploy`), then re-exports the module as an extra output
+so projects can reach it:
+
+```nix
+# library: flake.nix
+outputs =
+  { nixpkgs, lets, ... }:
+  let
+    letsTasks = import ./lets-tasks.nix;
+  in
+  lets.lib.mkFlake {
+    inherit nixpkgs;
+    systems = [ "x86_64-linux" ];
+    tasks = letsTasks;
+  }
+  // {
+    inherit letsTasks;
+  };
+```
+
+### Consuming it
+
+A project adds the library as an input (here `tasklib`) and merges its
+module into the project's own `tasks` function. Local keys win on conflict:
+
+```nix
+# project: flake.nix
+tasks =
+  scope:
+  (tasklib.letsTasks scope)
+  // {
+    build = scope.mkTask {
+      description = "Build the project";
+      run = ''echo "building"'';
+    };
+  };
+```
+
+Now `lets deploy`, `lets migrate` and `lets build` all run in the project,
+show up in `lets help`, and get shell completions with no duplication.
+They also compose through the [`tasks` fixpoint](#task-composition), across
+the library/project boundary.
+
+Again, because the project consumes only the `letsTasks` function
+(not `tasklib`'s built outputs), the library's own `nixpkgs` builds nothing
+downstream. Point it at yours so the lock file stays tidy:
+
+```nix
+# project: flake.nix
+inputs.tasklib.inputs.nixpkgs.follows = "nixpkgs";
+```
+
+### Cherry-picking
+
+Pull in only the tasks you want, the same way you cherry-pick
+[base tasks](#base-tasks):
+
+```nix
+# project: flake.nix
+tasks =
+  scope:
+  { inherit (tasklib.letsTasks scope) deploy; }
+  // {
+    build = scope.mkTask { /* ... */ };
+  };
+```
+
+### Pinned binaries (variant)
+
+The module above is rebuilt in each project, which is usually what you
+want. If instead every project must run the exact same binaries, the
+library can pre-build with `lets.lib.loadTasks` and export that per system:
+
+```nix
+# library: flake.nix (per-system output)
+letsTasks = lets.lib.loadTasks {
+  pkgs = nixpkgs.legacyPackages.${system};
+  src = ./lets-tasks.nix;
+};
+```
+
+Projects then merge `tasklib.letsTasks.${system}` directly.
+The trade-off is that those tasks are frozen to the library's `nixpkgs`,
+so a project on a different `nixpkgs` gets a mixed closure.
+
 ## Shell completions
 
 Completions cover the `lets` flags and options, every task (including nested
@@ -711,7 +832,7 @@ ones), each task's options and flags, and the task name expected by `show` and
 
 ### Install
 
-The `completions` package is project-agnostic — it drops the functions on the
+The `completions` package is project-agnostic, it drops the functions on the
 standard search paths (`share/zsh/site-functions`, …), so bash/zsh/fish load
 them automatically.
 

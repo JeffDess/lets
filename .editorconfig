@@ -13,6 +13,9 @@ trim_trailing_whitespace = true
 [*.md]
 indent_size = unset
 
+[*.svg]
+indent_size = unset
+
 [*.nix]
 max_line_length = 180
 

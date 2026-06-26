@@ -322,6 +322,48 @@
             echo "✅ flake-parts module produces the lets binary"
             touch "$out"
           '';
+        composition =
+          let
+            sharedLib =
+              { mkTask, ... }:
+              {
+                deploy = mkTask {
+                  description = "Deploy (from a shared task library)";
+                  run = ''echo "deploy: shared"'';
+                };
+              };
+            consumer = self.lib.mkFlake {
+              inherit nixpkgs;
+              systems = [ system ];
+              tasks =
+                scope:
+                (sharedLib scope)
+                // {
+                  build = scope.mkTask {
+                    description = "Build (local to the project)";
+                    run = ''echo "build: local"'';
+                  };
+                };
+            };
+            apps = consumer.apps.${system};
+          in
+          pkgs.runCommand "check-composition" { } ''
+            got="$(${apps.deploy.program})"
+            if [ "$got" != "deploy: shared" ]; then
+              echo "❌ merged shared library task did not run: $got" >&2
+              exit 1
+            fi
+            echo "✅ consumer runs the merged shared library task"
+
+            if ${apps.help.program} | grep -q deploy; then
+              echo "✅ shared library task is listed in help"
+            else
+              echo "❌ shared library task missing from help" >&2
+              exit 1
+            fi
+
+            touch "$out"
+          '';
         pre-commit-check = pre-commit-hooks.lib.${system}.run {
           src = ./.;
           hooks = {
