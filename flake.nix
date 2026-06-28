@@ -99,7 +99,8 @@
           esc=$'\033['
           # Capture to a variable (no pipe) so the task is never killed by SIGPIPE.
           # runCommand has no tty, so color is off unless FORCE_COLOR is set.
-          forced="$(FORCE_COLOR=1 "$bin")"
+          # Merge stderr: error/warn log there, the other levels to stdout.
+          forced="$(FORCE_COLOR=1 "$bin" 2>&1)"
 
           case $forced in
           *"$esc"*) echo "✅ ANSI codes emitted when forced" ;;
@@ -109,7 +110,7 @@
             ;;
           esac
 
-          plain="$("$bin")"
+          plain="$("$bin" 2>&1)"
 
           case $plain in
           *"$esc"*)

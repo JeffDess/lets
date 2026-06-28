@@ -118,7 +118,7 @@ let
     else
       [
         "  ${pat})"
-        "    if [ \"$#\" -lt 2 ]; then echo \"Error: $1 requires a value\" >&2; exit 1; fi"
+        "    if [ \"$#\" -lt 2 ]; then error \"$1 requires a value\"; exit 1; fi"
         "    # shellcheck disable=SC2034"
         "    ${n}=\"$2\""
         "    shift 2"
@@ -140,7 +140,7 @@ let
     ++ (
       if (f.required or false) then
         [
-          "if [ \"$#\" -gt 0 ]; then ${n}=\"$1\"; shift; else echo \"Error: <${n}> is required\" >&2; exit 1; fi"
+          "if [ \"$#\" -gt 0 ]; then ${n}=\"$1\"; shift; else error \"<${n}> is required\"; exit 1; fi"
         ]
       else
         [ "if [ \"$#\" -gt 0 ]; then ${n}=\"$1\"; shift; fi" ]
@@ -154,7 +154,7 @@ let
     in
     lib.optional (
       (f.required or false) && !isFlag f && !isPositional f
-    ) "if [ -z \"\${${n}-}\" ]; then echo \"Error: ${longOf n} is required\" >&2; exit 1; fi"
+    ) "if [ -z \"\${${n}-}\" ]; then error \"${longOf n} is required\"; exit 1; fi"
   ) argNames;
 in
 lib.concatStringsSep "\n" (
@@ -177,7 +177,7 @@ lib.concatStringsSep "\n" (
     "    break"
     "    ;;"
     "  -*)"
-    "    echo \"Error: unknown option: $1\" >&2"
+    "    error \"unknown option: $1\""
     "    exit 1"
     "    ;;"
     "  *)"

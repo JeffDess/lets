@@ -56,7 +56,11 @@ let
     trace = "cyan";
   };
   logFns = lib.mapAttrsToList (
-    n: color: "${n}() { printf '%s: %s\\n' \"$(${color} ${lib.toUpper n})\" \"$*\"; }"
+    n: color:
+    let
+      redir = lib.optionalString (n == "error" || n == "warn") " >&2";
+    in
+    "${n}() { printf '%s: %s\\n' \"$(${color} ${lib.toUpper n})\" \"$*\"${redir}; }"
   ) logLevels;
 
   fmtBindings = lib.concatStringsSep "\n" (constLines ++ singleFns ++ comboFns ++ logFns);

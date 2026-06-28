@@ -77,7 +77,7 @@ let
       ) taskNames
       ++ [
         "*)"
-        "  echo \"Error: unknown task: $task\" >&2"
+        "  error \"unknown task \\\"$task\\\"\""
         "  exit 1"
         "  ;;"
         "esac"

@@ -109,7 +109,7 @@ for tok in "$@"; do
 done
 
 if [ -z "$target" ]; then
-  echo "Error: unknown task: $1" >&2
+  error "unknown task \"$1\""
   exit 1
 fi
 
