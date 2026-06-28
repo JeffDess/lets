@@ -124,11 +124,11 @@ Already using [flake-parts](https://flake.parts)? Import the module and set
 ### Usage
 
 ```text
-lets <task>                     # Run task
-lets -h / --help / help         # Display help and list available tasks
-lets -s / --show / show <task>  # Display task details
-lets -c / --completions <shell> # Print a shell completion script
-lets -v / --version             # Display version
+lets <task>                      # Run task
+lets -h / --help [task]          # Display help, optionally for one task
+lets -s / --show <task>          # Display task details
+lets -c / --completions <shell>  # Print a shell completion script
+lets -v / --version              # Display version
 ```
 
 ### Demo task
@@ -217,7 +217,7 @@ Tasks have those attributes:
 <!-- editorconfig-checker-disable -->
 | Attribute | Type | Required | Description |
 | --- | --- | --- | --- |
-| `description` | string | Yes | Shown in `lets help`. |
+| `description` | string | Yes | Shown in `lets --help`. |
 | `name` | string | No | The built binary (the command you run). Defaults to the attribute key. You rarely need to set it. |
 | `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility.  |
 | `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
@@ -457,7 +457,7 @@ There's also another way of doing this if you want to unlock more options:
     description = "Hello world with input";
     args = {
       name = {
-        # Added to `lets help`
+        # Added to `lets --help`
         description = "Hello world with input and default value";
         # Accept -n as an alias to --name
         short = "n";
@@ -666,14 +666,13 @@ works everywhere:
 own tasks. They are available as `baseTasks` in every task's scope:
 
 * `help` - Lists available tasks and their descriptions
-  (auto-generated from your task set). Pass `-t <task>` (or
-  `--task <task>`) to print just that task's usage, e.g.
-  `lets help -t lint_nix`. `lets --help` and `lets -h` are
-  aliases for `lets help`.
-* `show <task>` - Prints a single task's usage, the packages it pulls in
-  (its `runtimeInputs`) and its script with syntax highlighting, e.g.
-  `lets show lint_nix`. `lets --show <task>` and `lets -s <task>` are
-  aliases for `lets show <task>`.
+  (auto-generated from your task set), via `lets --help` or
+  `lets -h`. Pass a task name to print just that task's usage,
+  e.g. `lets --help lint_nix`.
+* `show` - Prints a single task's usage, the packages it pulls in
+  (its `runtimeInputs`) and its script with syntax highlighting,
+  via `lets --show <task>` or `lets -s <task>`, e.g.
+  `lets --show lint_nix`.
 * `lint_bash` - Lints bash fragments embedded in Nix files and all `.sh` files
   using `shfmt` and `shellcheck`.
 * `lint_nix` - Lints Nix files with `statix` and `deadnix`.
@@ -826,9 +825,10 @@ example, but you need to point `inputs.lets.url` to your own repo:
 }
 ```
 
-Now `lets share`, `lets greet` all run in the project, show up in `lets help`,
-and get shell completions with no duplication. They also compose through
-the [`tasks` fixpoint](#task-composition), across the library/project boundary.
+Now `lets share` and `lets greet` both run in the project, show up
+in `lets --help`, and get shell completions with no duplication.
+They also compose through the [`tasks` fixpoint](#task-composition), across the
+library/project boundary.
 
 ```bash
 $ lets greet
@@ -874,8 +874,9 @@ so a project on a different `nixpkgs` gets a mixed closure.
 ## Shell completions
 
 Completions cover the `lets` flags and options, every task (including nested
-ones), each task's options and flags, and the task name expected by `show` and
-`help --task`. Supported shells are: `bash`, `zsh`, `fish` and `nushell`.
+ones), each task's options and flags, and the task name expected by
+`lets --show` and `lets --help`.
+Supported shells are: `bash`, `zsh`, `fish` and `nushell`.
 
 ### Install
 

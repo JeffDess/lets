@@ -155,7 +155,7 @@ let
 
   showDispatch = pkgs.lib.concatStringsSep "\n" (
     [
-      "task=\"\${1// /_}\""
+      "task=\"\${task// /_}\""
       "case \"$task\" in"
     ]
     ++ pkgs.lib.concatMap (
@@ -180,35 +180,7 @@ in
         pkgs.writeShellApplication {
           name = "help";
           text = ''
-            task=""
-            while [ "$#" -gt 0 ]; do
-              case "$1" in
-              -t | --task)
-                if [ "$#" -lt 2 ]; then
-                  echo "Error: $1 requires a value" >&2
-                  exit 1
-                fi
-                task="$2"
-                shift 2
-                ;;
-              --task=*)
-                task="''${1#*=}"
-                shift
-                ;;
-              -h | --help)
-                echo "Usage: lets help [-t|--task <task>]"
-                exit 0
-                ;;
-              -*)
-                echo "Error: unknown option: $1" >&2
-                exit 1
-                ;;
-              *)
-                break
-                ;;
-              esac
-            done
-
+            task="$*"
             if [ -n "$task" ]; then
               ${taskHelp}
               exit 0
@@ -218,9 +190,9 @@ in
             printf "\033[2m-------------------------\033[0m\n\n"
             printf "\033[1;4;34mUsage\033[0m\n"
             echo "  lets <task> [args...]"
-            echo "  lets help, -h, --help    Display this help message"
-            printf '      \033[32m-t, --task <value>\033[0m   Show help for a single task\n'
-            echo "  lets show, -s, --show    Show a task's usage, packages and script"
+            echo "  lets -h, --help          Display this help message"
+            printf '      \033[32m[task]\033[0m               Show help for a single task\n'
+            echo "  lets -s, --show          Show a task's usage, packages and script"
             printf '      \033[32m<task>\033[0m               The task to show\n'
             echo "  lets -c, --completions   Print a shell completion script"
             printf '      \033[32m<shell>\033[0m              bash, zsh, fish or nushell\n'
@@ -244,10 +216,12 @@ in
           runtimeInputs = [ pkgs.bat ];
           text = ''
             if [ "$#" -lt 1 ]; then
-              echo "Usage: lets show <task>" >&2
+              echo "Usage: lets -s, --show <task>" >&2
               exit 1
             fi
 
+            # shellcheck disable=SC2034
+            task="$*"
             ${showDispatch}
           '';
         }

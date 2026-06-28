@@ -6,10 +6,7 @@
 let
   inherit (pkgs) lib;
   resolvedVersion = if version == null then "0.0.0" else version;
-  targets = builtins.attrNames tasks ++ [
-    "help"
-    "show"
-  ];
+  targets = builtins.attrNames tasks;
   comp = import ./mkCompletions.nix { inherit pkgs; } { inherit tasks; };
   header = "TARGETS=(${
     lib.concatMapStringsSep " " lib.escapeShellArg targets

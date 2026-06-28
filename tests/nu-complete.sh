@@ -27,13 +27,13 @@ check() {
 
 tasks="demo lint lint_nix lint_nix-bash version"
 shells="bash fish nushell zsh"
-check "lets <TAB>" "demo help lint show version" "['lets' '']"
+check "lets <TAB>" "demo lint version" "['lets' '']"
 check "lets lint <TAB>" "nix nix-bash" "['lets' 'lint' '']"
 check "lets lint -<TAB>" "--verbose -v" "['lets' 'lint' '-']"
 check "lets version --<TAB>" "--dry-run" "['lets' 'version' '--']"
-check "lets help --task <TAB>" "$tasks" "['lets' 'help' '--task' '']"
+check "lets --help <TAB>" "$tasks" "['lets' '--help' '']"
 check "lets --completions <TAB>" "$shells" "['lets' '--completions' '']"
-check "lets show <TAB>" "$tasks" "['lets' 'show' '']"
+check "lets --show <TAB>" "$tasks" "['lets' '--show' '']"
 
 if [ "$fail" = 0 ]; then
   echo "✅ nushell completion assertions passed"

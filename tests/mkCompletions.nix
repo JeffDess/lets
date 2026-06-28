@@ -10,14 +10,12 @@ in
 {
   ### Tree navigation ###
 
-  # Top-level words
+  # Top-level words: only tasks, no help/show sub-commands.
   testTopWordsSorted = {
     expr = m.subWords [ ];
     expected = [
       "demo"
-      "help"
       "lint"
-      "show"
       "version"
     ];
   };
@@ -120,38 +118,53 @@ in
     expected = [ "name" ];
   };
 
-  ### Builtins ###
+  ### Root help/show options ###
 
-  testHelpTaskOption = {
-    expr = longsAt [ "help" ];
-    expected = [ "--task" ];
+  # Task names as the value of the root -h/--help option.
+  testRootHelpOption = {
+    expr =
+      let
+        o = lib.head (builtins.filter (o: o.long == "--help") (m.options [ ]));
+      in
+      {
+        inherit (o) short takesValue choices;
+      };
+    expected = {
+      short = "h";
+      takesValue = true;
+      choices = [
+        "demo"
+        "lint"
+        "lint_nix"
+        "lint_nix-bash"
+        "version"
+      ];
+    };
   };
 
-  # `lets show <TAB>` and `lets help -t <TAB>` offer the task names.
-  testShowTaskChoices = {
-    expr = (lib.head (m.positionals [ "show" ])).choices;
-    expected = [
-      "demo"
-      "lint"
-      "lint_nix"
-      "lint_nix-bash"
-      "version"
-    ];
+  # Task names as the value of the root -s/--show option.
+  testRootShowOption = {
+    expr =
+      let
+        o = lib.head (builtins.filter (o: o.long == "--show") (m.options [ ]));
+      in
+      {
+        inherit (o) short takesValue choices;
+      };
+    expected = {
+      short = "s";
+      takesValue = true;
+      choices = [
+        "demo"
+        "lint"
+        "lint_nix"
+        "lint_nix-bash"
+        "version"
+      ];
+    };
   };
 
-  testHelpTaskOptionChoices = {
-    expr = (lib.head (m.options [ "help" ])).choices;
-    expected = [
-      "demo"
-      "lint"
-      "lint_nix"
-      "lint_nix-bash"
-      "version"
-    ];
-  };
-
-  # `lets -c <TAB>` / `lets --completions <TAB>` offers shell choices as the
-  # value of the root -c/--completions option.
+  # Shell choices as the value of the root -c/--completions option.
   testRootCompletionsOption = {
     expr =
       let

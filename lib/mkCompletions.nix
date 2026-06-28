@@ -29,13 +29,13 @@ let
         description = "Print a shell completion script";
       };
       help = {
-        type = "flag";
         short = "h";
-        description = "Display the help message";
+        choices = taskNames;
+        description = "Display help, optionally for a single task";
       };
       show = {
-        type = "flag";
         short = "s";
+        choices = taskNames;
         description = "Show a task's usage, packages and script";
       };
       version = {
@@ -46,36 +46,13 @@ let
     };
   };
 
-  # Builtin lets sub-commands, modeled like tasks.
-  builtinCommands = [
-    {
-      path = [ "help" ];
-      description = "List available tasks";
-      args.task = {
-        short = "t";
-        choices = taskNames;
-        description = "Show help for a single task";
-      };
-    }
-    {
-      path = [ "show" ];
-      description = "Show a task's usage, packages and script";
-      args.task = {
-        type = "positional";
-        index = 1;
-        choices = taskNames;
-        description = "The task to show";
-      };
-    }
-  ];
-
   taskCommands = lib.mapAttrsToList (name: task: {
     path = lib.splitString "_" name;
     description = task.description or "";
     args = task.args or { };
   }) tasks;
 
-  commands = [ rootCommand ] ++ builtinCommands ++ taskCommands;
+  commands = [ rootCommand ] ++ taskCommands;
 
   commandAt = path: lib.findFirst (c: c.path == path) null commands;
   argsOf =

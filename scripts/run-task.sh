@@ -59,10 +59,12 @@ fi
 
 case "$1" in
 -h | --help)
-  set -- help "${@:2}"
+  shift
+  exec nix run --option warn-dirty false .#help -- "$@"
   ;;
 -s | --show)
-  set -- show "${@:2}"
+  shift
+  exec nix run --option warn-dirty false .#show -- "$@"
   ;;
 -c | --completions)
   shift

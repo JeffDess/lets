@@ -25,14 +25,14 @@ function check
     end
 end
 
-check "lets <TAB>" "demo help lint show version" 'lets '
+check "lets <TAB>" "demo lint version" 'lets '
 check "lets lint <TAB>" "nix nix-bash" 'lets lint '
 check "lets lint -<TAB>" "--verbose -v" 'lets lint -'
 check "lets version --<TAB>" "--dry-run" 'lets version --'
-check "lets help --task <TAB>" $tasks 'lets help --task '
+check "lets --help <TAB>" $tasks 'lets --help '
 check "lets --completions <TAB>" "bash fish nushell zsh" 'lets --completions '
-check "lets show <TAB>" $tasks 'lets show '
-check "lets show li<TAB>" "lint lint_nix lint_nix-bash" 'lets show li'
+check "lets --show <TAB>" $tasks 'lets --show '
+check "lets --show li<TAB>" "lint lint_nix lint_nix-bash" 'lets --show li'
 check "lets demo --locale <TAB>" "" 'lets demo --locale '
 
 if test $fail -eq 0

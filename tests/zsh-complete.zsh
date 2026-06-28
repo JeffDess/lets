@@ -44,13 +44,13 @@ assert() {
   fi
 }
 
-assert "lets <TAB>" "demo help lint show version" lets ""
+assert "lets <TAB>" "demo lint version" lets ""
 assert "lets lint <TAB>" "nix nix-bash" lets lint ""
 assert "lets lint -<TAB>" "--verbose -v" lets lint "-"
 assert "lets version --<TAB>" "--dry-run" lets version "--"
-assert "lets help --task <TAB>" "$tasks" lets help --task ""
+assert "lets --help <TAB>" "$tasks" lets --help ""
 assert "lets --completions <TAB>" "bash fish nushell zsh" lets --completions ""
-assert "lets show <TAB>" "$tasks" lets show ""
+assert "lets --show <TAB>" "$tasks" lets --show ""
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 
 if (( fail == 0 )); then
