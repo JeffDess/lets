@@ -2,12 +2,10 @@
 { tasks }:
 let
   inherit (pkgs) lib;
+  inherit (import ./args.nix { inherit lib; }) longOf isPositional isFlag;
 
   sortStrings = builtins.sort (a: b: a < b);
   taskNames = sortStrings (builtins.attrNames tasks);
-  longOf = n: "--" + builtins.replaceStrings [ "_" ] [ "-" ] n;
-  isPositional = a: (a.type or "option") == "positional";
-  isFlag = a: (a.type or "option") == "flag";
 
   #
   # MODEL

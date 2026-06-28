@@ -20,13 +20,16 @@
       version = "0.0.1";
       pkgs = nixpkgs.legacyPackages.${system};
       inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
-      mkTask = import ./lib/mkTask.nix;
-      mkTasks = import ./lib/mkTasks.nix;
-      loadTasks = import ./lib/loadTasks.nix;
-      mkOutputs = import ./lib/mkOutputs.nix;
-      mkLets = import ./lib/mkLets.nix;
-      mkBaseTasks = import ./lib/mkBaseTasks.nix;
-      mkFlake = import ./lib/mkFlake.nix;
+      letsLib = import ./lib;
+      inherit (letsLib)
+        mkTask
+        mkTasks
+        loadTasks
+        mkOutputs
+        mkLets
+        mkBaseTasks
+        mkFlake
+        ;
       tasks = mkBaseTasks { inherit pkgs; };
       taskOutputs = mkOutputs { inherit pkgs tasks; };
       letsCmd = mkLets { inherit pkgs tasks version; };
@@ -80,7 +83,7 @@
         mkFlake = args: mkFlake (args // { inherit version; });
       };
 
-      flakeModules.default = import ./lib/flakeModule.nix version;
+      flakeModules.default = letsLib.flakeModule version;
 
       formatter.${system} = pkgs.nixfmt-tree;
 
@@ -213,9 +216,10 @@
           pkgs.runCommand "check-unit"
             {
               failuresJson = builtins.toJSON (
-                pkgs.lib.runTests (
-                  import ./tests/mkTask.nix { inherit pkgs; } // import ./tests/mkCompletions.nix { inherit pkgs; }
-                )
+                pkgs.lib.runTests (import ./tests/args.nix { inherit pkgs; })
+                ++ pkgs.lib.runTests (import ./tests/validate.nix { inherit pkgs; })
+                ++ pkgs.lib.runTests (import ./tests/mkTask.nix { inherit pkgs; })
+                ++ pkgs.lib.runTests (import ./tests/mkCompletions.nix { inherit pkgs; })
               );
             }
             ''
