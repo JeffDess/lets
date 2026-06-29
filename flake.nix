@@ -18,7 +18,7 @@
     }:
     let
       system = "x86_64-linux";
-      version = "0.0.1";
+      version = "0.1.0";
       pkgs = nixpkgs.legacyPackages.${system};
       inherit (self.checks.${system}.pre-commit-check) shellHook enabledPackages;
       letsLib = import ./lib;
