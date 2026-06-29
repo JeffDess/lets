@@ -23,6 +23,10 @@ A simple task runner that combines the power of Nix and Bash.
 * **[Base Tasks](#base-tasks)**: Import presets and reduce boilerplate code
 * **[Text formatter](#text-formatting)**: Colorize and format your output with
   helper functions
+* **[Shell completions](#shell-completions)**: Auto-complete task names and
+  show their description
+* **Auto-documentation**: Help output and task inspection auto-generated from
+  your task definitions
 
 ## Requirements
 
