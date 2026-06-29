@@ -2,27 +2,27 @@
 
 ![lets do it!](img/tagline.png)
 > [!WARNING]
-> 🚧 This project is under active development 🚧
->
-> While it is ready to use in its current form, it is still in an
-> experimental phase.
-> Use at your own risk and expect things to break.
+> This project is perfectly usable but still in an early phase.
+> Expect breaking changes and consider pinning a release in your flake input
+> if you want stability.
 
 A simple task runner that combines the power of Nix and Bash.
 
-## Goals
+## Features
 
-This project aims for:
-
-* [ ] Reusable tasks across CLI, editor, git hooks and CI
-* [ ] Reproducible outcome on any environment
-* [ ] Support for task composition
-* [ ] Modularity: splitting files into smaller manageable units
-* [ ] Automated quality checks
-* [ ] Reduce duplication across projects
-* [ ] Modern tooling: good linter, formatter and LSP
-* [ ] Language/Framework/Tool agnostic. Use the same tool on any project
-* [ ] Performant and easy to use
+* **Single definition**: Write your task once then run across CLI, editor,
+  git hooks, checks and CI
+* **Toolchain control**: Reproducible outcome on any environment
+* **[Declarative arguments](#declarative-arguments)**: Flags, options and
+  positional arguments are automatically parsed and ready to use in your tasks
+* **[Task composition](#task-composition)**: Use task to create new tasks
+* **[Project composition](#sharing-tasks-across-projects)**: Create your own
+  task library to reuse across projects
+* **[Auto-Discovery](#a-directory-auto-discovery)**: No complex file wiring,
+  `lets` picks up your task files automatically
+* **[Base Tasks](#base-tasks)**: Import presets and reduce boilerplate code
+* **[Text formatter](#text-formatting)**: Colorize and format your output with
+  helper functions
 
 ## Requirements
 
