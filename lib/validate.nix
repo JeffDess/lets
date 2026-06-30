@@ -17,6 +17,7 @@ let
     else
       [ ];
   badNames = builtins.filter (n: builtins.match "[a-zA-Z_][a-zA-Z0-9_]*" n == null) argNames;
+  reservedArgsUsed = builtins.filter (n: n == "help") argNames;
   badShorts = builtins.filter (
     n:
     let
@@ -54,6 +55,9 @@ lib.optional (
 ++ lib.optional (
   badNames != [ ]
 ) "invalid argument name(s) (need a bash identifier): ${lib.concatStringsSep ", " badNames}"
+++ lib.optional (
+  reservedArgsUsed != [ ]
+) "argument name(s) reserved (clash with --help): ${lib.concatStringsSep ", " reservedArgsUsed}"
 ++
   lib.optional (badShorts != [ ])
     "short must be a single letter: ${

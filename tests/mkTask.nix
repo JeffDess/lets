@@ -114,6 +114,11 @@ in
     expected = false;
   };
 
+  testRejectReservedArgName = {
+    expr = builds (base // { args.help = { }; });
+    expected = false;
+  };
+
   testRejectShortTooLong = {
     expr = builds (base // { args.foo.short = "ab"; });
     expected = false;
