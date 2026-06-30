@@ -24,7 +24,7 @@
     ];
     run = ''
       statix check .
-      deadnix .
+      deadnix --fail .
       echo "✅ Nix linter passed"
     '';
   };
@@ -42,7 +42,7 @@
       lint_nix-bash
 
       fd --hidden --exclude .git --type f --extension sh --print0 |
-        xargs -0 -r sh -c 'shfmt -d -i 2 "$@"; shellcheck "$@"' _
+        xargs -0 -r sh -c 'shfmt -d -i 2 "$@" && shellcheck "$@"' _
 
       echo "✅ Bash linter passed"
     '';
