@@ -58,9 +58,22 @@ jobs:
       - lint-bash
       - lint-editorconfig
       - tests
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            system: x86_64-linux
+          - os: ubuntu-24.04-arm
+            system: aarch64-linux
+          - os: macos-15-intel
+            system: x86_64-darwin
+          - os: macos-latest
+            system: aarch64-darwin
+    name: flake-check (${{ matrix.system }})
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
       - name: Run flake checks
-        run: nix flake check
+        run: nix flake check -L
