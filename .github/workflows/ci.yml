@@ -66,10 +66,6 @@ jobs:
             system: x86_64-linux
           - os: ubuntu-24.04-arm
             system: aarch64-linux
-          - os: macos-15-intel
-            system: x86_64-darwin
-          - os: macos-latest
-            system: aarch64-darwin
     name: flake-check (${{ matrix.system }})
     runs-on: ${{ matrix.os }}
     steps:
@@ -77,3 +73,30 @@ jobs:
       - uses: ./.github/actions/setup-nix
       - name: Run flake checks
         run: nix flake check -L
+
+  build-darwin:
+    needs:
+      - format
+      - lint-nix
+      - lint-bash
+      - lint-editorconfig
+      - tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            system: x86_64-darwin
+          - os: macos-latest
+            system: aarch64-darwin
+    name: build-darwin (${{ matrix.system }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-nix
+      - name: Build lets outputs and run unit tests
+        run: |
+          nix build -L \
+            ".#packages.${{ matrix.system }}.lets" \
+            ".#packages.${{ matrix.system }}.completions" \
+            ".#checks.${{ matrix.system }}.unit"
