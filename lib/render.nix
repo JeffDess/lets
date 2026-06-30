@@ -93,7 +93,7 @@ let
     let
       task = tasks.${name};
       displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
-      taskLine = "printf \"  \\033[1;34m%s\\033[0m - %s\\n\" \"${displayName}\" \"${task.description}\"";
+      taskLine = "printf '  \\033[1;34m%s\\033[0m - %s\\n' ${esc displayName} ${esc task.description}";
     in
     [ taskLine ] ++ argLines (task.args or { });
 
