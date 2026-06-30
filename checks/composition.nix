@@ -16,7 +16,8 @@
     in
     pkgs.runCommand "check-flake-parts-module" { } ''
       test -x ${fp.packages.${system}.lets}/bin/lets
-      echo "✅ flake-parts module produces the lets binary"
+      test -x ${fp.packages.${system}.default}/bin/lets
+      echo "✅ flake-parts module produces the lets binary (and a default)"
       touch "$out"
     '';
   devshell-composition =

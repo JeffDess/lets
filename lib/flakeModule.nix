@@ -49,6 +49,7 @@ version:
       config = lib.mkIf (cfg.tasks != null) {
         inherit (out) apps;
         packages = {
+          default = lib.mkDefault letsCmd;
           lets = letsCmd;
         }
         // out.packages;
