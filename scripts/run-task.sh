@@ -57,18 +57,41 @@ if [ "$#" -lt 1 ]; then
   exit 1
 fi
 
+flake_root() {
+  local dir="$PWD"
+  while :; do
+    if [ -e "$dir/flake.nix" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    [ "$dir" = "/" ] && return 1
+    dir="${dir%/*}"
+    [ -z "$dir" ] && dir="/"
+  done
+}
+
+run_target() {
+  local root
+  if ! root="$(flake_root)"; then
+    error "no flake.nix found in $PWD or any parent directory"
+    exit 1
+  fi
+  cd "$root" || exit 1
+  exec nix run --option warn-dirty false ".#$1" -- "${@:2}"
+}
+
 case "$1" in
 -h | --help)
   shift
-  exec nix run --option warn-dirty false .#help -- "$@"
+  run_target help "$@"
   ;;
 -s | --show)
   shift
-  exec nix run --option warn-dirty false .#show -- "$@"
+  run_target show "$@"
   ;;
 -c | --completions)
   shift
-  exec nix run --option warn-dirty false .#completions -- "$@"
+  run_target completions "$@"
   ;;
 -v | --version)
   echo
@@ -116,4 +139,4 @@ if [ -z "$target" ]; then
 fi
 
 shift "$consumed"
-exec nix run --option warn-dirty false .#"$target" -- "$@"
+run_target "$target" "$@"
