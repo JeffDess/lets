@@ -105,12 +105,14 @@
       fi
       echo "✅ consumer runs the merged shared library task"
 
-      if ${apps.help.program} | grep -q deploy; then
-        echo "✅ shared library task is listed in help"
-      else
+      help_out="$(${apps.help.program})"
+      case "$help_out" in
+      *deploy*) echo "✅ shared library task is listed in help" ;;
+      *)
         echo "❌ shared library task missing from help" >&2
         exit 1
-      fi
+        ;;
+      esac
 
       touch "$out"
     '';
