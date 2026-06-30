@@ -357,8 +357,10 @@ constants become empty strings and functions print plain text.
 ### Logging
 
 Log helpers print `LEVEL: message`, with the level word colored by severity.
-They build on the color functions, so they write to **stdout** and follow the
-same color detection: `info "x" | cat` degrades to plain `INFO: x`.
+`error` and `warn` write to **stderr**; `info`, `debug` and `trace` write to
+**stdout**. Each follows color detection on its own stream, so `info "x" | cat`
+degrades to plain `INFO: x`, and `error` stays colored on a terminal even when
+stdout is redirected.
 
 ```bash
 error "build failed"

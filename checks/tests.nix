@@ -9,6 +9,7 @@
           ++ pkgs.lib.runTests (import ../tests/mkTask.nix { inherit pkgs; })
           ++ pkgs.lib.runTests (import ../tests/mkCompletions.nix { inherit pkgs; })
           ++ pkgs.lib.runTests (import ../tests/render.nix { inherit pkgs; })
+          ++ pkgs.lib.runTests (import ../tests/fmt.nix { inherit pkgs; })
         );
       }
       ''

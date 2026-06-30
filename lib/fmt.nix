@@ -58,9 +58,11 @@ let
   logFns = lib.mapAttrsToList (
     n: color:
     let
-      redir = lib.optionalString (n == "error" || n == "warn") " >&2";
+      toErr = n == "error" || n == "warn";
+      colorVar = if toErr then "_lets_color_err" else "_lets_color";
+      redir = lib.optionalString toErr " >&2";
     in
-    "${n}() { printf '%s: %s\\n' \"$(${color} ${lib.toUpper n})\" \"$*\"${redir}; }"
+    "${n}() { _lets_logline \"\$${colorVar}\" ${toString sgr.${color}} ${lib.toUpper n} \"$@\"${redir}; }"
   ) logLevels;
 
   fmtBindings = lib.concatStringsSep "\n" (constLines ++ singleFns ++ comboFns ++ logFns);
