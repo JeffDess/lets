@@ -46,8 +46,18 @@ let
     indent: args: fn:
     let
       f = args.${fn};
+      cols = [
+        "\"$GREEN\""
+        (esc (argNameCol args fn))
+        "\"$RESET\""
+        (esc (f.description or ""))
+        "\"$DIM\""
+        (esc (defColOf f))
+        "\"$RESET\""
+        (esc (reqColOf f))
+      ];
     in
-    "printf '${indent}\\033[32m%s\\033[0m   %s\\033[2m%s\\033[0m%s\\n' ${esc (argNameCol args fn)} ${esc (f.description or "")} ${esc (defColOf f)} ${esc (reqColOf f)}";
+    "printf '${indent}%s%s%s   %s%s%s%s%s\\n' ${lib.concatStringsSep " " cols}";
 
   argLines =
     args:
@@ -56,7 +66,7 @@ let
     in
     map (detailLine "      " args) (s.optNames ++ s.flagNames ++ s.posNames);
 
-  titleLine = t: "printf '\\033[1;4;34m%s\\033[0m\\n' ${esc t}";
+  titleLine = t: "printf '%s%s%s%s%s\\n' \"$BOLD\" \"$UNDERLINE\" \"$BLUE\" ${esc t} \"$RESET\"";
   section =
     title: content:
     [
@@ -93,7 +103,7 @@ let
     let
       task = tasks.${name};
       displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
-      taskLine = "printf '  \\033[1;34m%s\\033[0m - %s\\n' ${esc displayName} ${esc task.description}";
+      taskLine = "printf '  %s%s%s%s - %s\\n' \"$BOLD\" \"$BLUE\" ${esc displayName} \"$RESET\" ${esc task.description}";
     in
     [ taskLine ] ++ argLines (task.args or { });
 

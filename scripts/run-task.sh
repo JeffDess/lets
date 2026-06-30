@@ -71,8 +71,10 @@ case "$1" in
   exec nix run --option warn-dirty false .#completions -- "$@"
   ;;
 -v | --version)
-  printf '\n\033[1;36m lets - A Nix Task Runner\033[0m\n'
-  printf '\033[2m-------------------------\033[0m\n\n'
+  echo
+  bold_cyan " lets - A Nix Task Runner"
+  dim "-------------------------"
+  echo
   printf ' Version    %s\n' "$VERSION"
   printf ' Repository %s\n' 'https://github.com/JeffDess/lets'
   echo

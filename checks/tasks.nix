@@ -1,5 +1,6 @@
 {
   pkgs,
+  system,
   self,
   taskOutputs,
 }:
@@ -60,6 +61,69 @@
 
     touch "$out"
   '';
+  framework-color =
+    let
+      help = taskOutputs.apps.help.program;
+      show = taskOutputs.apps.show.program;
+      lets = "${self.packages.${system}.lets}/bin/lets";
+    in
+    pkgs.runCommand "check-framework-color" { } ''
+      esc=$'\033['
+      fail=0
+
+      plain() {
+        local label="$1"
+        shift
+        case "$("$@" 2>&1)" in
+        *"$esc"*)
+          echo "❌ $label leaked ANSI when not a tty" >&2
+          fail=1
+          ;;
+        *) echo "✅ $label plain when not a tty" ;;
+        esac
+      }
+      forced() {
+        local label="$1"
+        shift
+        case "$(FORCE_COLOR=1 "$@" 2>&1)" in
+        *"$esc"*) echo "✅ $label colored with FORCE_COLOR" ;;
+        *)
+          echo "❌ $label missing ANSI with FORCE_COLOR" >&2
+          fail=1
+          ;;
+        esac
+      }
+      no_color_wins() {
+        local label="$1"
+        shift
+        case "$(NO_COLOR=1 FORCE_COLOR=1 "$@" 2>&1)" in
+        *"$esc"*)
+          echo "❌ $label ignored NO_COLOR over FORCE_COLOR" >&2
+          fail=1
+          ;;
+        *) echo "✅ $label honors NO_COLOR over FORCE_COLOR" ;;
+        esac
+      }
+
+      plain "help" ${help}
+      forced "help" ${help}
+      no_color_wins "help" ${help}
+      plain "help <task>" ${help} version
+      forced "help <task>" ${help} version
+      plain "show" ${show} version
+      forced "show" ${show} version
+      plain "version" ${lets} -v
+      forced "version" ${lets} -v
+      no_color_wins "version" ${lets} -v
+
+      if [ "$fail" = 0 ]; then
+        echo "✅ framework output respects color detection"
+        touch "$out"
+      else
+        echo "❌ framework color assertions failed" >&2
+        exit 1
+      fi
+    '';
   lint = pkgs.runCommand "check-lint" { src = self; } ''
     cp -r "$src" source
     chmod -R +w source

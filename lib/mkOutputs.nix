@@ -47,18 +47,18 @@ in
                 exit 0
               fi
 
-              printf "\n\033[1;36m lets - A Nix Task Runner\033[0m\n"
-              printf "\033[2m-------------------------\033[0m\n\n"
-              printf "\033[1;4;34mUsage\033[0m\n"
+              printf '\n%s%s lets - A Nix Task Runner%s\n' "$BOLD" "$CYAN" "$RESET"
+              printf '%s-------------------------%s\n\n' "$DIM" "$RESET"
+              printf '%s%s%sUsage%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               echo "  lets <task> [args...]"
               echo "  lets -h, --help          Display this help message"
-              printf '      \033[32m[task]\033[0m               Show help for a single task\n'
+              printf '      %s[task]%s               Show help for a single task\n' "$GREEN" "$RESET"
               echo "  lets -s, --show          Show a task's usage, packages and script"
-              printf '      \033[32m<task>\033[0m               The task to show\n'
+              printf '      %s<task>%s               The task to show\n' "$GREEN" "$RESET"
               echo "  lets -c, --completions   Print a shell completion script"
-              printf '      \033[32m<shell>\033[0m              bash, zsh, fish or nushell\n'
+              printf '      %s<shell>%s              bash, zsh, fish or nushell\n' "$GREEN" "$RESET"
               echo "  lets -v, --version       Show version, description and repository"
-              printf "\n\033[1;4;34mAvailable Tasks\033[0m\n"
+              printf '\n%s%s%sAvailable Tasks%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               ${helpLines}
               echo
             '';
