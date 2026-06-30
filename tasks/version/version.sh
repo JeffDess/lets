@@ -14,7 +14,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-current=$(sed -n -E 's/^[[:space:]]*version = "([^"]+)";.*/\1/p' flake.nix)
+current=$(sed -n -E 's/^[[:space:]]*version = "([^"]+)";.*/\1/p;T;q' flake.nix)
 if [ -z "$current" ]; then
   echo "Error: could not read version from flake.nix" >&2
   exit 1
@@ -55,7 +55,8 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-sed -i -E "s|^([[:space:]]*version = \")[^\"]+(\";)|\1${new}\2|" flake.nix
+bump='s|^([[:space:]]*version = ")[^"]+(";)|\1'"${new}"'\2|'
+sed -i -E "0,/^[[:space:]]*version = \"[^\"]+\";/ $bump" flake.nix
 git cliff --tag "$tag" --output CHANGELOG.md
 git add flake.nix CHANGELOG.md
 git commit --message "chore(release): $tag"

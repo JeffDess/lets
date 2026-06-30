@@ -140,7 +140,7 @@
     mkdir repo && cd repo
     git init -q
     cp ${../cliff.toml} cliff.toml
-    printf '{\n  version = "1.2.3";\n}\n' >flake.nix
+    printf '{\n  version = "1.2.3";\n  pkg = {\n    version = "0.0.1";\n  };\n}\n' >flake.nix
     git add .
     git commit -q -m "feat: a feature"
     git tag -a v1.2.3 -m v1.2.3
@@ -190,6 +190,18 @@
       exit 1
     fi
     echo "✅ release rejects tag/version mismatch"
+
+    git checkout -q main
+    ${taskOutputs.packages.version}/bin/version patch
+    grep -qF '  version = "1.2.4";' flake.nix || {
+      echo "❌ version did not bump the first version line" >&2
+      exit 1
+    }
+    grep -qF '    version = "0.0.1";' flake.nix || {
+      echo "❌ version clobbered a nested version line" >&2
+      exit 1
+    }
+    echo "✅ version bumps only the first version line"
 
     touch "$out"
   '';

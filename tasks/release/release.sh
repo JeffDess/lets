@@ -12,7 +12,7 @@ if [ -z "$tag" ]; then
   exit 1
 fi
 
-version=$(sed -n -E 's/^[[:space:]]*version = "([^"]+)";.*/\1/p' flake.nix)
+version=$(sed -n -E 's/^[[:space:]]*version = "([^"]+)";.*/\1/p;T;q' flake.nix)
 if [ "$tag" != "v$version" ]; then
   echo "Error: tag $tag does not match flake.nix version v$version" >&2
   exit 1
