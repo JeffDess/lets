@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # Strict attr names that usually contain shell code in nixpkgs-style files.
 # editorconfig-checker-disable-next-line

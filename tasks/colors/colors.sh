@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # NOTE: Formatting constants and functions are injected by mkTask
 # shellcheck disable=SC2154

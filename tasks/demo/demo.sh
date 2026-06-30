@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
-set -euo pipefail
 
 # NOTE: `$locale` and `$name` are provided by mkTask's argument-parsing
 echo "Hello, $name!"
