@@ -3,7 +3,7 @@
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-script="$script_dir/../tasks/lint_commits/lint-commits.sh"
+script="$script_dir/../tasks/lint/lint-commits.sh"
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 results="$test_dir/results"
