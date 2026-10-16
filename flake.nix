@@ -53,35 +53,15 @@
             hooks = {
               convco = {
                 enable = true;
-                entry = toString (
-                  pkgs.writeShellScript "convco-commit-msg" ''
-                    if head -n1 "$1" | grep -qE '^(fixup|squash|amend)! '; then
-                      exit 0
-                    fi
-                    ${pkgs.convco}/bin/convco check --from-stdin <"$1"
-                  ''
-                );
+                entry = "${pkgs.lib.getExe tasks.lint_commits.app} --allow-fixup --message-file";
               };
-              convco-main = {
+              convco-push = {
                 enable = true;
-                name = "convco (push to main)";
+                name = "convco (push)";
                 stages = [ "pre-push" ];
                 pass_filenames = false;
                 always_run = true;
-                entry = toString (
-                  pkgs.writeShellScript "convco-pre-push" ''
-                    [ "''${PRE_COMMIT_REMOTE_BRANCH:-}" = refs/heads/main ] || exit 0
-                    export PATH=${
-                      pkgs.lib.makeBinPath [
-                        pkgs.convco
-                        pkgs.git
-                      ]
-                    }:$PATH
-                    base=''${PRE_COMMIT_FROM_REF:-$(git describe --tags --abbrev=0 --match 'v[0-9]*')}
-                    ALLOW_FIXUP=false exec ${pkgs.bash}/bin/bash \
-                      ${./.github/scripts/check-commits.sh} "$base..$PRE_COMMIT_TO_REF"
-                  ''
-                );
+                entry = "${pkgs.lib.getExe tasks.lint_commits.app} --protect main";
               };
               deadnix = {
                 enable = true;
