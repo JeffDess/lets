@@ -7,6 +7,9 @@ let
     prefix "args" (import ./args.nix { inherit pkgs; })
     // prefix "validate" (import ./validate.nix { inherit pkgs; })
     // prefix "mkTask" (import ./mkTask.nix { inherit pkgs; })
+    // prefix "render" (import ./render.nix { inherit pkgs; })
+    // prefix "fmt" (import ./fmt.nix { inherit pkgs; })
+    // prefix "loadTasks" (import ./loadTasks.nix { inherit pkgs; })
     // prefix "mkCompletions" (import ./mkCompletions.nix { inherit pkgs; });
   cases = lib.filterAttrs (n: _: lib.hasInfix ".test" n) tests;
 in
