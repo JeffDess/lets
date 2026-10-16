@@ -36,6 +36,13 @@ else
 fi
 
 echo
+echo "${BOLD}${UNDERLINE}${BLUE}Shell tests${RESET}"
+
+if ! bash tests/browse.sh; then
+  rc=1
+fi
+
+echo
 echo "${BOLD}${UNDERLINE}${BLUE}Examples${RESET}"
 
 system=$(nix eval --impure --raw --expr builtins.currentSystem)
