@@ -95,6 +95,18 @@
     stdout = "raw";
   }
   {
+    task = "positional";
+    args = [ "empty" ];
+    status = 1;
+    stdout = "";
+  }
+  {
+    task = "positional";
+    args = [ "" ];
+    status = 1;
+    stdout = "";
+  }
+  {
     task = "option";
     args = [ "--help" ];
     stdout = ''

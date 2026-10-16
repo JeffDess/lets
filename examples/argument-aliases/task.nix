@@ -29,6 +29,16 @@ in
     };
     run = ''printf '%s\n' "$url"'';
   };
+  positional = mkTask {
+    description = "Validate required positionals after resolving aliases";
+    args.url = {
+      type = "positional";
+      index = 1;
+      required = true;
+      aliases.empty = "";
+    };
+    run = ''printf '%s\n' "$url"'';
+  };
   required = mkTask {
     description = "Validate required values after resolving aliases";
     args.url = {

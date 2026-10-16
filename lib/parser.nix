@@ -159,9 +159,10 @@ let
     let
       f = normArgs.${n};
     in
-    lib.optional (
-      (f.required or false) && !isFlag f && !isPositional f
-    ) "if [ -z \"\${${n}-}\" ]; then error \"${longOf n} is required\"; exit 1; fi"
+    lib.optional ((f.required or false) && !isFlag f)
+      "if [ -z \"\${${n}-}\" ]; then error \"${
+        if isPositional f then "<${n}>" else longOf n
+      } is required\"; exit 1; fi"
   ) argNames;
 
   aliasBindings = lib.concatMap (
