@@ -51,7 +51,19 @@
           preCommitCheck = pre-commit-hooks.lib.${system}.run {
             src = ./.;
             hooks = {
-              convco.enable = true;
+              convco = {
+                enable = true;
+                entry = toString (
+                  pkgs.writeShellScript "convco-commit-msg" ''
+                    branch=$(${pkgs.git}/bin/git rev-parse --abbrev-ref HEAD)
+                    if [ "$branch" != main ] &&
+                      head -n1 "$1" | grep -qE '^(fixup|squash|amend)! '; then
+                      exit 0
+                    fi
+                    ${pkgs.convco}/bin/convco check --from-stdin <"$1"
+                  ''
+                );
+              };
               deadnix = {
                 enable = true;
                 settings.edit = true;
