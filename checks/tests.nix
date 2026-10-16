@@ -24,6 +24,19 @@
         fi
       '';
   examples =
+    let
+      aliasesHelp =
+        (import ../lib/mkOutputs.nix {
+          inherit pkgs;
+          tasks = import ../lib/mkTasks.nix (
+            import ../examples/argument-aliases/task.nix {
+              inherit pkgs;
+              inherit (pkgs) lib;
+              mkTask = import ../lib/mkTask.nix { inherit pkgs; };
+            }
+          );
+        }).apps.help.program;
+    in
     pkgs.runCommand "check-examples"
       {
         nativeBuildInputs = [ pkgs.jq ];
@@ -60,6 +73,23 @@
             fail=1
           fi
         done < <(jq -c '.[]' <<<"$casesJson")
+
+        for args in "" option browse; do
+          total=$((total + 1))
+          name="argument-aliases: lets --help $args"
+          # shellcheck disable=SC2086
+          actual=$(${aliasesHelp} $args 2>&1) || true
+          # shellcheck disable=SC2016
+          case $actual in
+          *'from $LETS_ALIAS_URL'* | *'printed with `printf`'*)
+            report+="  ✅ ''${name% }"$'\n'
+            ;;
+          *)
+            report+="  ❌ ''${name% } (got: $actual)"$'\n'
+            fail=1
+            ;;
+          esac
+        done
 
         if [ "$fail" = 0 ]; then
           report+="✅ $total example case(s) passed"$'\n'

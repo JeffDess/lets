@@ -25,7 +25,14 @@ let
 
   reqColOf = f: if (f.required or false) then "  (required)" else "";
 
-  plain = line: "printf '%s\\n' ${esc line}";
+  quoted =
+    texts: cmd:
+    lib.optionalString (lib.any (
+      t: lib.hasInfix "$" t || lib.hasInfix "`" t
+    ) texts) "# shellcheck disable=SC2016\n"
+    + cmd;
+
+  plain = line: quoted [ line ] "printf '%s\\n' ${esc line}";
 
   argNameCol =
     args: fn:
@@ -46,21 +53,28 @@ let
     indent: args: fn:
     let
       f = args.${fn};
+      name = argNameCol args fn;
+      desc = f.description or "";
+      def = defColOf f;
+      req = reqColOf f;
       cols = [
         "\"$GREEN\""
-        (esc (argNameCol args fn))
+        (esc name)
         "\"$RESET\""
-        (esc (f.description or ""))
+        (esc desc)
         "\"$DIM\""
-        (esc (defColOf f))
+        (esc def)
         "\"$RESET\""
-        (esc (reqColOf f))
+        (esc req)
       ];
     in
-    "printf '${indent}%s%s%s   %s%s%s%s%s\\n' ${lib.concatStringsSep " " cols}"
-    + lib.concatMapStrings (line: "\n# shellcheck disable=SC2016\n" + plain "${indent}    ${line}") (
-      args'.aliasHelp f
-    );
+    quoted [
+      name
+      desc
+      def
+      req
+    ] "printf '${indent}%s%s%s   %s%s%s%s%s\\n' ${lib.concatStringsSep " " cols}"
+    + lib.concatMapStrings (line: "\n" + plain "${indent}    ${line}") (args'.aliasHelp f);
 
   argLines =
     args:
@@ -106,7 +120,9 @@ let
     let
       task = tasks.${name};
       displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
-      taskLine = "printf '  %s%s%s%s - %s\\n' \"$BOLD\" \"$BLUE\" ${esc displayName} \"$RESET\" ${esc task.description}";
+      taskLine =
+        quoted [ task.description ]
+          "printf '  %s%s%s%s - %s\\n' \"$BOLD\" \"$BLUE\" ${esc displayName} \"$RESET\" ${esc task.description}";
     in
     [ taskLine ] ++ argLines (task.args or { });
 

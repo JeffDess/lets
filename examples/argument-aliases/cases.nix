@@ -112,7 +112,18 @@
     stdout = ''
       Usage: option [options]
       Options:
-        -u, --url <value>     (default: docs)
+        -u, --url <value>   URL or alias, from $LETS_ALIAS_URL  (default: docs)
+                chain -> docs
+                docs -> https://example.com/docs
+                literal* -> a 'quote' "double" $HOME $(exit 99) `exit 98` \\ end'';
+  }
+  {
+    task = "browse";
+    args = [ "--help" ];
+    stdout = ''
+      Usage: browse [url]
+      Arguments:
+            <url>   URL or alias, printed with `printf`  (default: docs)
                 chain -> docs
                 docs -> https://example.com/docs
                 literal* -> a 'quote' "double" $HOME $(exit 99) `exit 98` \\ end'';

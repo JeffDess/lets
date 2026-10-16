@@ -70,12 +70,14 @@ let
     map (n: if (normArgs.${n}.required or false) then " <${n}>" else " [${n}]") posNames
   );
 
-  aliasLines =
-    f:
-    lib.concatMap (line: [
-      "# shellcheck disable=SC2016"
-      "printf '%s\\n' ${esc "          ${line}"}"
-    ]) (args.aliasHelp f);
+  # NOTE: Help text is printed single-quoted on purpose; silence SC2016 when it
+  # looks like an expansion (e.g. a description mentioning $VAR).
+  helpLine =
+    line:
+    lib.optional (lib.hasInfix "$" line || lib.hasInfix "`" line) "# shellcheck disable=SC2016"
+    ++ [ "printf '%s\\n' ${esc line}" ];
+
+  aliasLines = f: lib.concatMap (line: helpLine "          ${line}") (args.aliasHelp f);
 
   valOptNames = builtins.filter (n: !isFlag normArgs.${n}) optNames;
   flagNames = builtins.filter (n: isFlag normArgs.${n}) optNames;
@@ -88,7 +90,7 @@ let
       reqCol = if (f.required or false) then "  (required)" else "";
       line = "  ${shortCol}${longOf n}${valCol}   ${f.description or ""}${defDisplay f}${reqCol}";
     in
-    [ "printf '%s\\n' ${esc line}" ] ++ aliasLines f;
+    helpLine line ++ aliasLines f;
   usagePosLine =
     n:
     let
@@ -96,7 +98,7 @@ let
       reqCol = if (f.required or false) then "  (required)" else "";
       line = "      <${n}>   ${f.description or ""}${defDisplay f}${reqCol}";
     in
-    [ "printf '%s\\n' ${esc line}" ] ++ aliasLines f;
+    helpLine line ++ aliasLines f;
   usageLines = [
     "printf '%s\\n' ${esc "Usage: ${resolvedName}${lib.optionalString (optNames != [ ]) " [options]"}${posPlaceholders}"}"
   ]

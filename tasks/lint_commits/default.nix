@@ -9,7 +9,7 @@
     ];
     args = {
       from = {
-        description = "Excluded base commit (PRE_COMMIT_FROM_REF, else the latest v* tag)";
+        description = "Excluded base commit ($PRE_COMMIT_FROM_REF, else the latest v* tag)";
         default = [ "$PRE_COMMIT_FROM_REF" ];
       };
       to = {

@@ -12,6 +12,7 @@ in
     args.url = {
       type = "positional";
       index = 1;
+      description = "URL or alias, printed with `printf`";
       default = "docs";
       inherit aliases;
     };
@@ -21,6 +22,7 @@ in
     description = "Resolve option aliases";
     args.url = {
       short = "u";
+      description = "URL or alias, from $LETS_ALIAS_URL";
       default = [
         "$LETS_ALIAS_URL"
         "docs"
