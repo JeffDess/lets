@@ -711,6 +711,11 @@ own tasks. They are available as `baseTasks` in every task's scope:
   using `shfmt` and `shellcheck`.
 * `lint_nix` - Lints Nix files with `statix` and `deadnix`.
 * `lint_nix-bash` - Lints just the bash fragments embedded in Nix files.
+* `lint_commits` - Lints commit messages with
+  [convco](https://convco.github.io), from the latest `v*` tag to `HEAD` by
+  default. Rejects `fixup!`, `squash!` and `amend!` commits unless you pass
+  `--allow-fixup`. See [commit message linting](#commit-message-linting) to
+  run it in hooks and CI.
 * `lint` - Runs all lint tasks in this flake
   (but you probably want to define your own).
 * `version [level]` - Bumps the flake's `version`, refreshes `CHANGELOG.md`,
@@ -1082,6 +1087,84 @@ lint:
 ```
 
 You can see a complete file in the [Gitlab CI Pipeline example](.gitlab-ci.yml).
+
+### Commit message linting
+
+The `lint_commits` base task lints commit messages with
+[convco](https://convco.github.io), in hooks and in CI:
+
+<!-- editorconfig-checker-disable -->
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--from <ref>` | `$PRE_COMMIT_FROM_REF`, else the latest `v*` tag, else the whole history | Excluded base commit |
+| `--to <ref>` | `$PRE_COMMIT_TO_REF`, else `HEAD` | Last commit to lint |
+| `--message-file <path>` | | Lint one message file; `--from` and `--to` are ignored |
+| `--allow-fixup` | | Let `fixup!`, `squash!` and `amend!` commits through |
+| `--protect <branch>` | | Reject fixups only when `$PRE_COMMIT_REMOTE_BRANCH` is that branch (or unknown) |
+<!-- editorconfig-checker-enable -->
+
+With [git-hooks.nix](https://github.com/cachix/git-hooks.nix), allow fixups
+while committing and reject them when pushing to `main`:
+
+<!-- editorconfig-checker-disable -->
+```nix
+hooks = {
+  convco = {
+    enable = true;
+    entry = "${lib.getExe self.packages.${system}.lint_commits} --allow-fixup --message-file";
+  };
+  convco-push = {
+    enable = true;
+    name = "convco (push)";
+    stages = [ "pre-push" ];
+    pass_filenames = false;
+    always_run = true;
+    entry = "${lib.getExe self.packages.${system}.lint_commits} --protect main";
+  };
+};
+```
+<!-- editorconfig-checker-enable -->
+
+With flake-parts, use `config.packages.lint_commits` instead. The
+`PRE_COMMIT_*` variables come from the pre-commit framework: with another hook
+manager, pass `--from`, `--to` and the push target yourself.
+
+In CI, pick the base commit and the fixup policy from the event.
+
+You can see an example on the [GitHub CI workflow](.github/workflows/ci.yml)
+`lint-commits` job: fixups pass on draft pull requests and feature branch
+pushes, and fail on ready pull requests and pushes to `main`. A GitLab
+equivalent:
+
+<!-- editorconfig-checker-disable -->
+```yaml
+lint-commits:
+  stage: lint
+  variables:
+    GIT_DEPTH: 0
+  rules:
+    - if: $CI_MERGE_REQUEST_DRAFT == "true"
+      variables:
+        FROM: $CI_MERGE_REQUEST_DIFF_BASE_SHA
+        FIXUP: --allow-fixup
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        FROM: $CI_MERGE_REQUEST_DIFF_BASE_SHA
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        FROM: $CI_COMMIT_BEFORE_SHA
+    - if: $CI_COMMIT_BRANCH
+      variables:
+        FROM: origin/$CI_DEFAULT_BRANCH
+        FIXUP: --allow-fixup
+  script:
+    - git fetch origin "$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+    - git rev-parse --verify --quiet "$FROM^{commit}" >/dev/null || FROM=
+    - nix run .#lint_commits -- $FIXUP --from "$FROM" --to "$CI_COMMIT_SHA"
+```
+<!-- editorconfig-checker-enable -->
+
+As it relies on a commit range, `lint_commits` is not part of the `lint` task.
 
 ## Releasing
 

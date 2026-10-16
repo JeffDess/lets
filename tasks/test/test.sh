@@ -38,9 +38,11 @@ fi
 echo
 echo "${BOLD}${UNDERLINE}${BLUE}Shell tests${RESET}"
 
-if ! bash tests/browse.sh; then
-  rc=1
-fi
+for shell_test in tests/browse.sh tests/lint-commits.sh; do
+  if ! bash "$shell_test"; then
+    rc=1
+  fi
+done
 
 echo
 echo "${BOLD}${UNDERLINE}${BLUE}Examples${RESET}"

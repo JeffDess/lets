@@ -202,6 +202,23 @@ in
     expected = true;
   };
 
+  testLintCommitsBaseTaskBuilds = {
+    expr =
+      let
+        task = (import ../lib/mkBaseTasks.nix { inherit pkgs; }).lint_commits;
+      in
+      (builtins.tryEval task.app.drvPath).success
+      &&
+        builtins.attrNames task.args == [
+          "allow_fixup"
+          "from"
+          "message_file"
+          "protect"
+          "to"
+        ];
+    expected = true;
+  };
+
   testRejectListDuplicateNames = {
     expr = builds (
       base
