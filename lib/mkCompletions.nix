@@ -2,7 +2,12 @@
 { tasks }:
 let
   inherit (pkgs) lib;
-  inherit (import ./args.nix { inherit lib; }) longOf isPositional isFlag;
+  inherit (import ./args.nix { inherit lib; })
+    longOf
+    isPositional
+    isFlag
+    choicesOf
+    ;
 
   sortStrings = builtins.sort (a: b: a < b);
   taskNames = sortStrings (builtins.attrNames tasks);
@@ -81,7 +86,8 @@ let
       long = longOf n;
       short = a.${n}.short or null;
       takesValue = !isFlag a.${n};
-      choices = a.${n}.choices or null;
+      choices = choicesOf a.${n};
+      aliases = a.${n}.aliases or { };
       description = a.${n}.description or "";
     }) names;
 
@@ -96,7 +102,8 @@ let
       name = n;
       description = a.${n}.description or "";
       required = a.${n}.required or false;
-      choices = a.${n}.choices or null;
+      choices = choicesOf a.${n};
+      aliases = a.${n}.aliases or { };
     }) sorted;
 
   #
@@ -114,14 +121,17 @@ let
     in
     if c == null then "" else c.description;
 
-  descForChoice = c: if tasks ? ${c} then tasks.${c}.description or "" else "";
+  # Alias choices describe their value; task-name choices describe the task.
+  descForChoice = aliases: c: aliases.${c} or (tasks.${c}.description or "");
 
+  # NOTE: Only the first positional is completed (see _LETS_POSVAL in run-task.sh).
+  firstPositional = path: lib.findFirst (_: true) null (positionals path);
   posChoices =
     path:
     let
-      withChoices = builtins.filter (p: p.choices != null) (positionals path);
+      first = firstPositional path;
     in
-    if withChoices == [ ] then [ ] else (lib.head withChoices).choices;
+    if first == null || first.choices == null then [ ] else first.choices;
 
   valueOptEntries =
     path:
@@ -129,7 +139,7 @@ let
       o:
       map (t: {
         key = "${keyOf path}##${t}";
-        inherit (o) choices;
+        inherit (o) choices aliases;
       }) ([ o.long ] ++ lib.optional (o.short != null) "-${o.short}")
     ) (builtins.filter (o: o.takesValue) (options path));
 
@@ -170,7 +180,7 @@ let
       block = blockOf (
         map (c: {
           v = c;
-          d = descForChoice c;
+          d = descForChoice (firstPositional path).aliases c;
         }) (posChoices path)
       );
     }) commandPaths
@@ -182,7 +192,7 @@ let
       block = blockOf (
         map (c: {
           v = c;
-          d = descForChoice c;
+          d = descForChoice e.aliases c;
         }) e.choices
       );
     }) (builtins.filter (e: e.choices != null) (valueOptEntries path))
@@ -211,6 +221,7 @@ in
       isCommand
       options
       positionals
+      posChoices
       ;
   };
   inherit baked;

@@ -9,6 +9,19 @@ rec {
 
   longOf = name: "--" + builtins.replaceStrings [ "_" ] [ "-" ] name;
 
+  choicesOf =
+    arg:
+    let
+      choices = arg.choices or null;
+      aliases = builtins.attrNames (arg.aliases or { });
+    in
+    if choices == null && aliases == [ ] then
+      null
+    else
+      lib.unique ((if choices == null then [ ] else choices) ++ aliases);
+
+  aliasHelp = arg: lib.mapAttrsToList (name: value: "${name} -> ${value}") (arg.aliases or { });
+
   split = args: {
     optNames = builtins.filter (n: isOption args.${n}) (builtins.attrNames args);
     flagNames = builtins.filter (n: isFlag args.${n}) (builtins.attrNames args);

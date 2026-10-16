@@ -223,7 +223,7 @@ Tasks have those attributes:
 | --- | --- | --- | --- |
 | `description` | string | Yes | Shown in `lets --help`. |
 | `name` | string | No | The built binary (the command you run). Defaults to the attribute key. You rarely need to set it. |
-| `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility.  |
+| `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility. |
 | `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
 | `args` | attrset or list | No | CLI arguments (options, flags and positionals) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
 <!-- editorconfig-checker-enable -->
@@ -543,6 +543,42 @@ default = [ "Foo" "$USERNAME" "$USER" ]; # literal position doesn't matter
 ```
 
 To keep things understandable, stick with the real effective order.
+
+#### Value aliases
+
+Options and positional arguments accept an `aliases` attribute set mapping
+shortcut names to string values. Flags do not support aliases.
+
+For example, you can customize the base `browse` task in your flake by
+redefining `browse` in your project:
+
+```nix
+{ mkTask, baseTasks, ... }:
+let
+  base = baseTasks.browse;
+in
+{
+  browse = mkTask {
+    inherit (base) description runtimeInputs run;
+    args = base.args // {
+      url = base.args.url // {
+        required = false;
+        default = "https://github.com/JeffDess/lets";
+        aliases = {
+          docs = "https://github.com/JeffDess/lets/blob/main/README.md";
+          issues = "https://github.com/JeffDess/lets/issues";
+        };
+      };
+    };
+  };
+}
+```
+
+`lets browse` opens the default URL, `lets browse docs` opens the docs URL,
+and `lets browse https://other.example.com` opens the supplied URL.
+
+Alias names join any explicit `choices` as completion suggestions, and those
+overrides are reflected in `--help` and `--show` commands.
 
 #### Flags
 

@@ -57,7 +57,10 @@ let
         (esc (reqColOf f))
       ];
     in
-    "printf '${indent}%s%s%s   %s%s%s%s%s\\n' ${lib.concatStringsSep " " cols}";
+    "printf '${indent}%s%s%s   %s%s%s%s%s\\n' ${lib.concatStringsSep " " cols}"
+    + lib.concatMapStrings (line: "\n# shellcheck disable=SC2016\n" + plain "${indent}    ${line}") (
+      args'.aliasHelp f
+    );
 
   argLines =
     args:

@@ -180,6 +180,28 @@ in
     expected = false;
   };
 
+  # Mirrors the README "Value aliases" example: a built base task's
+  # attributes must be reusable as mkTask input.
+  testBaseTaskOverrideWithAliases = {
+    expr =
+      let
+        base' = (import ../lib/mkBaseTasks.nix { inherit pkgs; }).browse;
+        task = build {
+          inherit (base') description runtimeInputs run;
+          args = base'.args // {
+            url = base'.args.url // {
+              required = false;
+              default = "https://example.com";
+              aliases.docs = "https://example.com/docs";
+            };
+          };
+        };
+      in
+      (builtins.tryEval task.app.drvPath).success
+      && task.args.url.aliases.docs == "https://example.com/docs";
+    expected = true;
+  };
+
   testRejectListDuplicateNames = {
     expr = builds (
       base

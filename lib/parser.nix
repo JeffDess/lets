@@ -70,6 +70,13 @@ let
     map (n: if (normArgs.${n}.required or false) then " <${n}>" else " [${n}]") posNames
   );
 
+  aliasLines =
+    f:
+    lib.concatMap (line: [
+      "# shellcheck disable=SC2016"
+      "printf '%s\\n' ${esc "          ${line}"}"
+    ]) (args.aliasHelp f);
+
   valOptNames = builtins.filter (n: !isFlag normArgs.${n}) optNames;
   flagNames = builtins.filter (n: isFlag normArgs.${n}) optNames;
   usageOptLine =
@@ -81,7 +88,7 @@ let
       reqCol = if (f.required or false) then "  (required)" else "";
       line = "  ${shortCol}${longOf n}${valCol}   ${f.description or ""}${defDisplay f}${reqCol}";
     in
-    "printf '%s\\n' ${esc line}";
+    [ "printf '%s\\n' ${esc line}" ] ++ aliasLines f;
   usagePosLine =
     n:
     let
@@ -89,16 +96,16 @@ let
       reqCol = if (f.required or false) then "  (required)" else "";
       line = "      <${n}>   ${f.description or ""}${defDisplay f}${reqCol}";
     in
-    "printf '%s\\n' ${esc line}";
+    [ "printf '%s\\n' ${esc line}" ] ++ aliasLines f;
   usageLines = [
     "printf '%s\\n' ${esc "Usage: ${resolvedName}${lib.optionalString (optNames != [ ]) " [options]"}${posPlaceholders}"}"
   ]
   ++ lib.optional (valOptNames != [ ]) "printf '%s\\n' ${esc "Options:"}"
-  ++ map usageOptLine valOptNames
+  ++ lib.concatMap usageOptLine valOptNames
   ++ lib.optional (flagNames != [ ]) "printf '%s\\n' ${esc "Flags:"}"
-  ++ map usageOptLine flagNames
+  ++ lib.concatMap usageOptLine flagNames
   ++ lib.optional (posNames != [ ]) "printf '%s\\n' ${esc "Arguments:"}"
-  ++ map usagePosLine posNames;
+  ++ lib.concatMap usagePosLine posNames;
 
   caseClauses = lib.concatMap (
     n:
@@ -156,6 +163,21 @@ let
       (f.required or false) && !isFlag f && !isPositional f
     ) "if [ -z \"\${${n}-}\" ]; then error \"${longOf n} is required\"; exit 1; fi"
   ) argNames;
+
+  aliasBindings = lib.concatMap (
+    n:
+    let
+      aliases = normArgs.${n}.aliases or { };
+    in
+    lib.optionals (aliases != { }) (
+      [
+        "# shellcheck disable=SC2016"
+        "case \"\${${n}}\" in"
+      ]
+      ++ lib.mapAttrsToList (alias: value: "  ${esc alias}) ${n}=${esc value} ;;") aliases
+      ++ [ "esac" ]
+    )
+  ) argNames;
 in
 lib.concatStringsSep "\n" (
   initLines
@@ -188,5 +210,6 @@ lib.concatStringsSep "\n" (
   ]
   ++ lib.optional (posNames != [ ]) ""
   ++ positionalBindings
+  ++ aliasBindings
   ++ requiredChecks
 )

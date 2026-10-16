@@ -36,6 +36,28 @@ let
     n: (normArgs.${n} ? type) && !(builtins.elem normArgs.${n}.type validTypes)
   ) argNames;
 
+  badAliases = builtins.filter (
+    n:
+    let
+      f = normArgs.${n};
+      a = f.aliases or { };
+    in
+    f ? aliases
+    && (args.isFlag f || !builtins.isAttrs a || !builtins.all builtins.isString (builtins.attrValues a))
+  ) argNames;
+
+  # NOTE: An empty name would match an unset value, and the parser treats
+  # a positional starting with "-" as an option before resolving aliases.
+  badAliasNames = builtins.filter (
+    n:
+    let
+      f = normArgs.${n};
+      a = f.aliases or { };
+    in
+    builtins.isAttrs a
+    && lib.any (k: k == "" || (isPositional f && lib.hasPrefix "-" k)) (builtins.attrNames a)
+  ) argNames;
+
   # Positional-specific validation.
   posDefs = builtins.filter (n: isPositional normArgs.${n}) argNames;
   posMissingIndex = builtins.filter (n: !(normArgs.${n} ? index)) posDefs;
@@ -49,7 +71,12 @@ let
     && posBadIndex == [ ]
     && posIdxSorted != lib.genList (i: i + 1) (builtins.length posDefs);
 in
-lib.optional (
+lib.optional (badAliases != [ ])
+  "aliases must be an attribute set of strings on options or positionals: ${lib.concatStringsSep ", " badAliases}"
+++
+  lib.optional (badAliasNames != [ ])
+    "alias names must be non-empty and, on positionals, not start with '-': ${lib.concatStringsSep ", " badAliasNames}"
+++ lib.optional (
   listDupNames != [ ]
 ) "duplicate argument name(s): ${lib.concatStringsSep ", " listDupNames}"
 ++ lib.optional (

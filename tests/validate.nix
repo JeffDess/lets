@@ -12,6 +12,54 @@ let
   ok = rawArgs: errs rawArgs == [ ];
 in
 {
+  ### Aliases ###
+
+  testAliasesValid = {
+    expr = ok { url.aliases.docs = "https://example.com/docs"; };
+    expected = true;
+  };
+
+  testRejectAliasesOnFlag = {
+    expr = ok {
+      verbose = {
+        type = "flag";
+        aliases.on = "true";
+      };
+    };
+    expected = false;
+  };
+
+  testRejectAliasesList = {
+    expr = ok { url.aliases = [ "docs" ]; };
+    expected = false;
+  };
+
+  testRejectAliasNonString = {
+    expr = ok { url.aliases.docs = 42; };
+    expected = false;
+  };
+
+  testRejectAliasEmptyName = {
+    expr = ok { url.aliases."" = "https://example.com"; };
+    expected = false;
+  };
+
+  testRejectPositionalAliasDashName = {
+    expr = ok {
+      url = {
+        type = "positional";
+        index = 1;
+        aliases."-d" = "https://example.com/docs";
+      };
+    };
+    expected = false;
+  };
+
+  testOptionAliasDashName = {
+    expr = ok { url.aliases."-d" = "https://example.com/docs"; };
+    expected = true;
+  };
+
   ### Accepts valid shapes ###
 
   testValidEmpty = {

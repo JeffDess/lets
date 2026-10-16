@@ -5,9 +5,70 @@ let
   inherit (import ./fixture.nix { inherit pkgs; }) tasks;
 
   m = (mkCompletions { inherit tasks; }).model;
+  aliasCompletions = mkCompletions {
+    tasks.browse.args = {
+      url = {
+        type = "positional";
+        index = 1;
+        aliases.docs = "https://example.com/docs";
+      };
+      target = {
+        short = "t";
+        choices = [
+          "raw"
+          "docs"
+        ];
+        aliases = {
+          docs = "https://example.com/docs";
+          issues = "https://example.com/issues";
+        };
+      };
+    };
+  };
+  aliasModel = aliasCompletions.model;
   longsAt = path: map (o: o.long) (m.options path);
 in
 {
+  ### Aliases ###
+
+  testAliasPositionalCompletion = {
+    expr = (lib.head (aliasModel.positionals [ "browse" ])).choices;
+    expected = [ "docs" ];
+  };
+
+  testAliasPositionalNotOfferedAtOtherIndex = {
+    expr =
+      (mkCompletions {
+        tasks.t.args = {
+          file = {
+            type = "positional";
+            index = 1;
+          };
+          env = {
+            type = "positional";
+            index = 2;
+            aliases.prod = "production";
+          };
+        };
+      }).model.posChoices
+        [ "t" ];
+    expected = [ ];
+  };
+
+  testAliasCompletionDescribedByValue = {
+    expr = lib.hasInfix "issues\\thttps://example.com/issues" aliasCompletions.baked;
+    expected = true;
+  };
+
+  testAliasOptionCompletionMerged = {
+    expr = (lib.head (aliasModel.options [ "browse" ])).choices;
+    expected = [
+      "raw"
+      "docs"
+      "issues"
+    ];
+  };
+
   ### Tree navigation ###
 
   # Top-level words: only tasks, no help/show sub-commands.
