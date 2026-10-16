@@ -55,12 +55,31 @@
                 enable = true;
                 entry = toString (
                   pkgs.writeShellScript "convco-commit-msg" ''
-                    branch=$(${pkgs.git}/bin/git rev-parse --abbrev-ref HEAD)
-                    if [ "$branch" != main ] &&
-                      head -n1 "$1" | grep -qE '^(fixup|squash|amend)! '; then
+                    if head -n1 "$1" | grep -qE '^(fixup|squash|amend)! '; then
                       exit 0
                     fi
                     ${pkgs.convco}/bin/convco check --from-stdin <"$1"
+                  ''
+                );
+              };
+              convco-main = {
+                enable = true;
+                name = "convco (push to main)";
+                stages = [ "pre-push" ];
+                pass_filenames = false;
+                always_run = true;
+                entry = toString (
+                  pkgs.writeShellScript "convco-pre-push" ''
+                    [ "''${PRE_COMMIT_REMOTE_BRANCH:-}" = refs/heads/main ] || exit 0
+                    export PATH=${
+                      pkgs.lib.makeBinPath [
+                        pkgs.convco
+                        pkgs.git
+                      ]
+                    }:$PATH
+                    base=''${PRE_COMMIT_FROM_REF:-$(git describe --tags --abbrev=0 --match 'v[0-9]*')}
+                    ALLOW_FIXUP=false exec ${pkgs.bash}/bin/bash \
+                      ${./.github/scripts/check-commits.sh} "$base..$PRE_COMMIT_TO_REF"
                   ''
                 );
               };
