@@ -46,6 +46,14 @@ let
         short = "v";
         description = "Show version, description and repository";
       };
+      env_file = {
+        short = "E";
+        description = "Load an env file for this run (repeatable)";
+      };
+      no_env_files = {
+        type = "flag";
+        description = "Skip the project's envFiles";
+      };
     };
   };
 

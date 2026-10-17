@@ -42,6 +42,10 @@ in
           type = "positional";
           index = 1;
           description = "Name to greet";
+          aliases = {
+            alice = "Alice";
+            bob = "Bob";
+          };
         };
       };
       run = "true";

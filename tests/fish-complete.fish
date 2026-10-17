@@ -33,6 +33,9 @@ check "lets --help <TAB>" $tasks 'lets --help '
 check "lets --completions <TAB>" "bash fish nushell zsh" 'lets --completions '
 check "lets --show <TAB>" $tasks 'lets --show '
 check "lets --show li<TAB>" "lint lint_nix lint_nix-bash" 'lets --show li'
+check "lets -E .prod.env <TAB>" "demo lint version" 'lets -E .prod.env '
+mkdir -p envdir; and cd envdir; and touch .prod.env .dev.env
+check "lets -E <TAB> lists files" ".dev.env .prod.env" 'lets -E '
 check "lets demo --locale <TAB>" "" 'lets demo --locale '
 
 if test $fail -eq 0

@@ -58,6 +58,10 @@ in
               echo "  lets -c, --completions   Print a shell completion script"
               printf '      %s<shell>%s              bash, zsh, fish or nushell\n' "$GREEN" "$RESET"
               echo "  lets -v, --version       Show version, description and repository"
+              echo "  lets -E, --env-file      Load an env file for this run"
+              printf '      %s<file>%s               Repeatable, beats the shell and task files\n' \
+                "$GREEN" "$RESET"
+              echo "  lets --no-env-files      Skip the project's envFiles"
               printf '\n%s%s%sAvailable Tasks%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               ${helpLines}
               echo

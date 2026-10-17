@@ -225,6 +225,21 @@ in
     };
   };
 
+  testRootEnvFileOption = {
+    expr =
+      let
+        opts = m.options [ ];
+        o = lib.head (builtins.filter (o: o.long == "--env-file") opts);
+      in
+      {
+        inherit (o) short takesValue;
+      };
+    expected = {
+      short = "E";
+      takesValue = true;
+    };
+  };
+
   # Shell choices as the value of the root -c/--completions option.
   testRootCompletionsOption = {
     expr =

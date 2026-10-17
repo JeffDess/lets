@@ -41,7 +41,6 @@ in
         helpScan = true;
       };
       envLoad = "${helpScan}\n\nif ! _lets_wants_help \"$@\"; then\n${envPreamble}\nfi";
-      loadsEnv = envFiles != [ ] || lib.hasInfix "load_env" run;
       argNames = builtins.attrNames normArgs;
     in
     lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
@@ -51,14 +50,12 @@ in
         name = resolvedName;
         inherit runtimeInputs;
         excludeShellChecks = [ "SC2329" ];
-        text = lib.concatStringsSep "\n\n" (
-          [ fmtPreamble ]
-          ++ lib.optional loadsEnv envLoad
-          ++ [
-            argParser
-            run
-          ]
-        );
+        text = lib.concatStringsSep "\n\n" [
+          fmtPreamble
+          envLoad
+          argParser
+          run
+        ];
       };
     };
 }
