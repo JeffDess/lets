@@ -158,7 +158,11 @@
           };
           plain = mkTask {
             description = "Print DB without loading anything";
-            run = ''echo "$DB"'';
+            run = ''echo "''${DB-unset}"'';
+          };
+          plain_env_files = mkTask {
+            description = "Print LETS_ENV_FILES as a task sees it";
+            run = ''echo "''${LETS_ENV_FILES-unset}"'';
           };
           shell_state = mkTask {
             description = "Print whether loading env files left the shell options as they were";
@@ -177,8 +181,10 @@
           parent_profile = runs "plain" "load_env .prod.env;";
           parent_assign = runs "plain" "DB=x";
           parent_export = runs "plain" "export DB=x;";
+          parent_cd = runs "plain" "mkdir -p sub && cd sub &&";
           parent_pinned = runs "dev_loader" "load_env .prod.env;";
           parent_override = runs "plain" "load_env --override .prod.env;";
+          dev_override = printAfter "load_env --override .dev.env";
         };
       vanilla = self.lib.mkFlake {
         inherit nixpkgs;
@@ -208,6 +214,116 @@
           env DB=shell ${apps.parent_override.program}
         expect "${label}: parent profile wins over child profile" prod \
           ${apps.parent_pinned.program}
+        expect "${label}: LETS_ENV_FILES loads after envFiles" prod \
+          env LETS_ENV_FILES=.prod.env ${apps.plain.program}
+        expect "${label}: LETS_ENV_FILES wins over the shell" prod \
+          env DB=shell LETS_ENV_FILES=.prod.env ${apps.plain.program}
+        expect "${label}: LETS_ENV_FILES entries apply in order" dev \
+          env LETS_ENV_FILES=.prod.env:.dev.env ${apps.plain.program}
+        expect "${label}: empty LETS_ENV_FILES entries are skipped" prod \
+          env LETS_ENV_FILES=:.prod.env:: ${apps.plain.program}
+        expect "${label}: LETS_NO_ENV_FILES skips envFiles" unset \
+          env LETS_NO_ENV_FILES=1 ${apps.plain.program}
+        expect "${label}: LETS_NO_ENV_FILES keeps LETS_ENV_FILES" prod \
+          env LETS_NO_ENV_FILES=1 LETS_ENV_FILES=.prod.env ${apps.plain.program}
+        expect "${label}: LETS_NO_ENV_FILES keeps -E files" prod \
+          env LETS_NO_ENV_FILES=1 LETS_ENV_SOURCES="file:$PWD/.prod.env" \
+          ${apps.plain.program}
+        expect "${label}: -E wins over LETS_ENV_FILES" prod \
+          env LETS_ENV_FILES=.dev.env LETS_ENV_SOURCES="file:$PWD/.prod.env" \
+          ${apps.plain.program}
+        expect "${label}: LETS_ENV_FILES expands ~/" prod \
+          env HOME="$PWD" LETS_ENV_FILES='~/.prod.env' ${apps.plain.program}
+        expect "${label}: -E expands ~/" prod \
+          env HOME="$PWD" LETS_ENV_SOURCES='file:~/.prod.env' ${apps.plain.program}
+        if env LETS_ENV_SOURCES='file:$LETS_UNSET_VAR/x.env' ${apps.plain.program} \
+          2>unset.err; then
+          echo "❌ ${label}: an unset variable in -E should fail" >&2
+          exit 1
+        fi
+        has_err unset.err 'LETS_UNSET_VAR is not set (from --env-file)'
+        if env LETS_EMPTY_VAR= LETS_ENV_FILES='$LETS_EMPTY_VAR/.prod.env' \
+          ${apps.plain.program} 2>empty.err; then
+          echo "❌ ${label}: an empty variable in LETS_ENV_FILES should fail" >&2
+          exit 1
+        fi
+        has_err empty.err 'LETS_EMPTY_VAR is empty (from LETS_ENV_FILES)'
+        echo "✅ ${label}: an unset or empty variable in -E fails"
+        expect "${label}: LETS_ENV_FILES reaches the child" prod \
+          env LETS_ENV_FILES=.prod.env ${apps.parent_loader.program}
+        expect "${label}: LETS_ENV_FILES wins over a parent export" prod \
+          env LETS_ENV_FILES=.prod.env ${apps.parent_export.program}
+        expect "${label}: LETS_ENV_FILES resolves from the first task's directory" \
+          prod env LETS_ENV_FILES=.prod.env ${apps.parent_cd.program}
+        expect "${label}: LETS_ENV_FILES survives a task's load_env" prod \
+          env LETS_ENV_FILES=.prod.env ${apps.dev_loader.program}
+        expect "${label}: load_env --override cannot beat the CLI" prod \
+          env LETS_ENV_FILES=.prod.env ${apps.dev_override.program}
+        expect "${label}: load_env --override cannot beat -E" prod \
+          env LETS_ENV_SOURCES="file:$PWD/.prod.env" ${apps.dev_override.program}
+        expect "${label}: LETS_ENV_SOURCES applies in order" dev \
+          env LETS_ENV_SOURCES=$'file:.prod.env\nfile:.dev.env' \
+          ${apps.plain.program}
+        if env LETS_ENV_FILES='$LETS_UNSET_VAR/x.env' ${apps.plain.program} \
+          2>unset.err; then
+          echo "❌ ${label}: an unset variable in LETS_ENV_FILES should fail" >&2
+          exit 1
+        fi
+        has_err unset.err 'LETS_UNSET_VAR is not set (from LETS_ENV_FILES)'
+        echo "✅ ${label}: an unset variable in an explicit entry fails"
+        if env LETS_ENV_FILES='$(: >pwned).env' ${apps.plain.program} \
+          2>subst.err; then
+          echo "❌ ${label}: command substitution in LETS_ENV_FILES should fail" >&2
+          exit 1
+        fi
+        has_err subst.err 'only $VAR and ''${VAR} are expanded (from LETS_ENV_FILES)'
+        if [ -e pwned ]; then
+          echo "❌ ${label}: command substitution in LETS_ENV_FILES was executed" >&2
+          exit 1
+        fi
+        echo "✅ ${label}: LETS_ENV_FILES only expands variables"
+        if env LETS_ENV_FILES=.bad.env ${apps.plain.program} 2>bad.err; then
+          echo "❌ ${label}: a malformed LETS_ENV_FILES entry should fail" >&2
+          exit 1
+        fi
+        has_err bad.err ".bad.env:1: missing '=' (from LETS_ENV_FILES)"
+        if env LETS_ENV_SOURCES="file:$PWD/.bad.env" ${apps.plain.program} \
+          2>bad.err; then
+          echo "❌ ${label}: a malformed -E file should fail" >&2
+          exit 1
+        fi
+        has_err bad.err ".bad.env:1: missing '=' (from --env-file)"
+        echo "✅ ${label}: errors name the CLI source"
+        expect "${label}: a file cannot set LETS_ENV_FILES" "$PWD/.prod.env" \
+          env LETS_ENV_FILES=.prod.env ${apps.plain_env_files.program}
+        env LETS_ENV_FILES=.prod.env ${apps.plain_env_files.program} \
+          2>reserved.err >/dev/null
+        has_err reserved.err 'LETS_ENV_FILES is reserved, skipped'
+        has_err reserved.err 'LETS_NO_ENV_FILES is reserved, skipped'
+        has_err reserved.err 'LETS_ENV_SOURCES is reserved, skipped'
+        if env LETS_ENV_FILES=.nope.env ${apps.plain.program} \
+          2>missing.err; then
+          echo "❌ ${label}: a missing LETS_ENV_FILES entry should fail" >&2
+          exit 1
+        fi
+        has_err missing.err 'nope.env not found (from LETS_ENV_FILES)'
+        if env LETS_ENV_SOURCES="file:$PWD/.nope.env" ${apps.plain.program} \
+          2>missing.err; then
+          echo "❌ ${label}: a missing -E file should fail" >&2
+          exit 1
+        fi
+        has_err missing.err 'nope.env not found (from --env-file)'
+        mkdir -p locked
+        printf 'DB=x\n' >locked/.env
+        chmod 000 locked
+        if env LETS_ENV_SOURCES="file:$PWD/locked/.env" ${apps.plain.program} \
+          2>locked.err; then
+          echo "❌ ${label}: a -E file in a locked directory should fail" >&2
+          exit 1
+        fi
+        chmod 700 locked
+        has_err locked.err 'locked/.env is not a readable file (from --env-file)'
+        echo "✅ ${label}: a missing LETS_ENV_FILES entry fails the task"
       '';
       layered = self.lib.mkFlake {
         inherit nixpkgs;
@@ -264,6 +380,12 @@
           exit 1
         fi
       }
+      has_err() {
+        grep -qF -- "$2" "$1" || {
+          echo "❌ expected '$2' in $1, got: $(<"$1")" >&2
+          exit 1
+        }
+      }
 
       printf 'GREET_NAME=Alice\nGREET_SOURCE=file\nname=fromfile\n' >.env
       for prog in \
@@ -280,12 +402,59 @@
       done
       echo "✅ envFiles load before arg parsing (vanilla + flake-parts)"
 
-      printf 'DB=local\n' >>.env
+      printf 'DB=local\nLETS_ENV_FILES=x\nLETS_NO_ENV_FILES=1\nLETS_ENV_SOURCES=x\n' >>.env
       printf 'DB=prod\n' >.prod.env
+      printf 'BROKEN\n' >.bad.env
       printf 'DB=dev\n' >.dev.env
       ${composed "vanilla" vanilla.apps.${system}}
       ${composed "flake-parts" fp.apps.${system}}
       echo "✅ env precedence holds across composed tasks (vanilla + flake-parts)"
+
+      mkdir 'dollar$dir'
+      cd 'dollar$dir'
+      if env LETS_ENV_FILES=.prod.env ${vanilla.apps.${system}.plain.program} \
+        2>dollar.err; then
+        echo "❌ a relative LETS_ENV_FILES entry under a \$ directory should fail" >&2
+        exit 1
+      fi
+      has_err dollar.err "cannot resolve .prod.env: $PWD contains '\$'"
+      cd ..
+      echo "✅ a relative LETS_ENV_FILES entry under a \$ directory fails"
+
+      mkdir 'colon:dir'
+      cd 'colon:dir'
+      if env LETS_ENV_FILES=.prod.env ${vanilla.apps.${system}.plain.program} \
+        2>colon.err; then
+        echo "❌ a relative LETS_ENV_FILES entry under a : directory should fail" >&2
+        exit 1
+      fi
+      has_err colon.err "cannot resolve .prod.env: $PWD contains '\$' or ':'"
+      cd ..
+      echo "✅ a relative LETS_ENV_FILES entry under a : directory fails"
+
+      mkdir -p e2e/bin e2e/apps e2e/sub
+      touch e2e/flake.nix
+      printf 'DB=local\n' >e2e/.env
+      printf 'DB=cli\n' >e2e/sub/.cli.env
+      ln -s ${vanilla.apps.${system}.plain.program} e2e/apps/plain
+      ln -s ${vanilla.apps.${system}.parent_export.program} e2e/apps/parent_export
+      printf '#!%s\nexec "$LETS_TEST_APPS/''${5#.#}" "''${@:7}"\n' ${pkgs.runtimeShell} \
+        >e2e/bin/nix
+      chmod +x e2e/bin/nix
+      cd e2e/sub
+      export LETS_TEST_APPS="$PWD/../apps"
+      lets="${vanilla.packages.${system}.lets}/bin/lets"
+      PATH="$PWD/../bin:$PATH" expect "lets -E reaches the task" cli \
+        "$lets" -E .cli.env plain
+      PATH="$PWD/../bin:$PATH" expect "lets -E reaches a child task" cli \
+        "$lets" -E .cli.env parent_export
+      PATH="$PWD/../bin:$PATH" expect "LETS_ENV_FILES resolves from the caller" cli \
+        env LETS_ENV_FILES=.cli.env "$lets" plain
+      PATH="$PWD/../bin:$PATH" expect "lets runs tasks from the project root" local \
+        "$lets" plain
+      unset LETS_TEST_APPS
+      cd ../..
+      echo "✅ the lets wrapper hands CLI files to tasks"
 
       expect "loading env files keeps the shell options" clean \
         ${vanilla.apps.${system}.shell_state.program}
@@ -342,6 +511,14 @@
       *"LETS_TEST_DIR is not set, skipped"*) ;;
       *)
         echo "❌ an unset variable in an envFiles entry should warn: $err" >&2
+        exit 1
+        ;;
+      esac
+      empty_err="$(env HOME="$PWD/home" LETS_TEST_DIR= ${expand} 2>&1 >/dev/null)"
+      case "$empty_err" in
+      *"LETS_TEST_DIR is empty, skipped"*) ;;
+      *)
+        echo "❌ an empty variable in an envFiles entry should warn: $empty_err" >&2
         exit 1
         ;;
       esac

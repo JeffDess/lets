@@ -125,6 +125,8 @@
         export HOME="$TMPDIR"
         fail=0
 
+        echo "wrapper"
+        (cd "$TMPDIR" && bash ${../tests/wrapper.sh} ${L}) || fail=1
         echo "bash"
         bash ${../tests/bash-complete.sh} ${L} ${../completions/lets.bash} || fail=1
         echo "zsh"

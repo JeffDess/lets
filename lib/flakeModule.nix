@@ -52,7 +52,7 @@ version:
             task's working directory (the project root when run through
             `lets`). A leading `~/`, `$VAR` and `''${VAR}` are expanded, and
             any other `$` fails evaluation. Missing files and entries that
-            name an unset variable are skipped with a warning.
+            name an unset or empty variable are skipped with a warning.
             The caller's environment wins over them.
           '';
         };

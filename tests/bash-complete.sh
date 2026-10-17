@@ -41,6 +41,59 @@ assert "lets -c <TAB>" "bash fish nushell zsh" lets -c ""
 assert "lets --show <TAB>" "$tasks" lets --show ""
 assert "lets -s <TAB>" "$tasks" lets -s ""
 assert "lets --show li<TAB>" "lint lint_nix lint_nix-bash" lets --show li
+assert_sorted() {
+  local desc="$1" expected="$2"
+  shift 2
+  COMP_WORDS=("$@")
+  COMP_CWORD=$((${#COMP_WORDS[@]} - 1))
+  COMPREPLY=()
+  _lets
+  local got
+  got="$(printf '%s\n' "${COMPREPLY[@]}" | sort | tr '\n' ' ')"
+  if [ "${got% }" = "$expected" ]; then
+    printf '  ✅ %s\n' "$desc"
+  else
+    printf '  ❌ %s\n     expected: [%s]\n     got:      [%s]\n' \
+      "$desc" "$expected" "${got% }"
+    fail=1
+  fi
+}
+root_flags="--completions --env-file --help --no-env-files --show --version"
+root_flags="$root_flags -E -c -h -s -v"
+assert_sorted "lets -<TAB> lists env flags" "$root_flags" lets "-"
+assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
+assert "lets --no-env-files <TAB>" "demo lint version" lets --no-env-files ""
+mkdir -p quoting/home && cd quoting || exit 1
+# shellcheck disable=SC2016
+touch '$(touch PWNED).env' 'a b.env' .p.env home/h.env
+assert_sorted "lets -E <TAB> quotes file names" \
+  '.p.env \$\(touch\ PWNED\).env a\ b.env home/' lets -E ""
+if [ -e PWNED ]; then
+  printf '  ❌ %s\n' "file names are never evaluated"
+  fail=1
+fi
+assert 'lets -E a\ <TAB>' 'a\ b.env' lets -E 'a\ '
+assert "lets --env-file=.p<TAB>" ".p.env" lets --env-file = .p
+assert "lets --env-file=h<TAB>" "home/" lets --env-file = h
+assert_sorted "lets --env-file=<TAB>" \
+  '.p.env \$\(touch\ PWNED\).env a\ b.env home/' lets --env-file =
+assert "lets --env-file=x lint <TAB>" "nix nix-bash" lets --env-file = x lint ""
+home_was="$HOME"
+export HOME="$PWD/home"
+# shellcheck disable=SC2088
+assert "lets -E ~/<TAB>" "~/h.env" lets -E "~/"
+export HOME="$home_was"
+cd .. || exit 1
+assert "lets -E .prod.env lint <TAB>" "nix nix-bash" lets -E .prod.env lint ""
+assert "lets lint -E x nix <TAB>" "nix nix-bash" lets lint -E x nix ""
+assert "lets demo <TAB>" "alice bob" lets demo ""
+assert "lets -E .prod.env demo <TAB>" "alice bob" lets -E .prod.env demo ""
+assert "lets --env-file=x demo <TAB>" "alice bob" lets --env-file = x demo ""
+assert "lets demo alice <TAB>" "" lets demo alice ""
+mkdir -p envdir slashdir/sub && cd envdir && touch .prod.env .dev.env
+assert_sorted "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
+assert "lets -E ../slashdir/s<TAB>" "../slashdir/sub/" lets -E ../slashdir/s
+assert "lets -E .p<TAB>" ".prod.env" lets -E ".p"
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 
 # NOTE: Descriptions are emitted as a tab-separated second field.

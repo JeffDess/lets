@@ -34,6 +34,9 @@ _lets_env_protected() {
 }
 
 _lets_env_kept() {
+  if [ -n "${_LETS_ENV_PINNED[$1]+x}" ] && [ "$3" != cli ]; then
+    return 0
+  fi
   [ -z "$2" ] || return 1
   [ -n "${_LETS_CALLER_ENV[$1]+x}" ] || return 1
   [ -n "${!1+x}" ] || return 1
@@ -123,6 +126,9 @@ skipped$_lets_env_from"
       continue
     fi
     export -- "$_lets_key=$_lets_value"
+    if [ "$_lets_mode" = cli ]; then
+      _LETS_ENV_PINNED["$_lets_key"]=1
+    fi
   done
 }
 
@@ -173,28 +179,85 @@ _lets_env_expand() {
     if [[ $_lets_rest =~ $_lets_braced || $_lets_rest =~ $_lets_bare ]]; then
       _lets_name="${BASH_REMATCH[1]}"
       if [ -z "${!_lets_name+x}" ]; then
-        _lets_env_missing="$_lets_name"
+        _lets_env_missing="$_lets_name is not set"
+        return 1
+      fi
+      if [ -z "${!_lets_name}" ]; then
+        _lets_env_missing="$_lets_name is empty"
         return 1
       fi
       _lets_env_path+="${!_lets_name}"
       _lets_rest="${BASH_REMATCH[2]}"
     else
-      _lets_env_path+='$'
+      _lets_env_missing=''
+      return 1
     fi
   done
   _lets_env_path+="$_lets_rest"
 }
 
-_lets_env_autoload() {
-  local - _lets_entry _lets_env_from=' (from envFiles)'
-  set +x
-  for _lets_entry in "$@"; do
-    if _lets_env_expand "$_lets_entry"; then
-      _lets_env_load "$_lets_env_path" '' auto || return 1
+_lets_env_cli_file() {
+  local _lets_env_from=" (from $2)"
+  if ! _lets_env_expand "$1"; then
+    if [ -n "$_lets_env_missing" ]; then
+      error "load_env: $1: $_lets_env_missing$_lets_env_from"
     else
-      warn "load_env: $_lets_entry: $_lets_env_missing is not set, \
-skipped$_lets_env_from"
+      error "load_env: $1: only \$VAR and \${VAR} are expanded$_lets_env_from"
     fi
+    return 1
+  fi
+  _lets_env_load "$_lets_env_path" 1 cli
+}
+
+_lets_env_anchor() {
+  local _lets_entry _lets_anchored=()
+  for _lets_entry in ${LETS_ENV_FILES:-}; do
+    [ -n "$_lets_entry" ] || continue
+    case "$_lets_entry" in
+    /* | \~/* | '$'*) ;;
+    *)
+      if [[ $PWD == *['$:']* ]]; then
+        error "load_env: cannot resolve $_lets_entry: $PWD contains '\$' or \
+':' (from LETS_ENV_FILES)"
+        return 1
+      fi
+      _lets_entry="$PWD/$_lets_entry"
+      ;;
+    esac
+    _lets_anchored+=("$_lets_entry")
+  done
+  LETS_ENV_FILES="${_lets_anchored[*]}"
+}
+
+# shellcheck disable=SC2120
+_lets_env_autoload() {
+  local - IFS=: _lets_entry _lets_env_from=' (from envFiles)'
+  set -f +x
+  if [ -z "${LETS_NO_ENV_FILES:-}" ]; then
+    for _lets_entry in "$@"; do
+      if _lets_env_expand "$_lets_entry"; then
+        _lets_env_load "$_lets_env_path" '' auto || return 1
+      else
+        warn "load_env: $_lets_entry: $_lets_env_missing, \
+skipped$_lets_env_from"
+      fi
+    done
+  fi
+  if [ -n "${LETS_ENV_FILES:-}" ]; then
+    _lets_env_anchor || return 1
+  fi
+  for _lets_entry in ${LETS_ENV_FILES:-}; do
+    _lets_env_cli_file "$_lets_entry" LETS_ENV_FILES || return 1
+  done
+  IFS=$'\n'
+  for _lets_entry in ${LETS_ENV_SOURCES:-}; do
+    case "$_lets_entry" in
+    file:*) _lets_env_cli_file "${_lets_entry#file:}" --env-file || return 1 ;;
+    *)
+      error "load_env: bad LETS_ENV_SOURCES entry '$_lets_entry'"
+      return 1
+      ;;
+    esac
   done
 }
 
@@ -229,6 +292,6 @@ load_env() {
   done
 }
 
-declare -A _LETS_CALLER_ENV=() _LETS_ENV_MATCHED=()
+declare -A _LETS_CALLER_ENV=() _LETS_ENV_MATCHED=() _LETS_ENV_PINNED=()
 _lets_env_missing='' _lets_env_from=''
 _lets_env_snapshot

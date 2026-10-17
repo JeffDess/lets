@@ -15,9 +15,19 @@ _describe() {
     shift
   done
   shift
-  local an e
-  for an in "$@"; do
-    for e in "${(@P)an}"; do CAP+=("${e%%:*}"); done
+  local e v sep=$'\1'
+  while (( $# )); do
+    case "$1" in
+    --) shift ;;
+    -S) shift 2 ;;
+    *)
+      for e in "${(@P)1}"; do
+        v="${e//\\:/$sep}"
+        CAP+=("${${v%%:*}//$sep/:}")
+      done
+      shift
+      ;;
+    esac
   done
 }
 
@@ -51,6 +61,14 @@ assert "lets version --<TAB>" "--dry-run" lets version "--"
 assert "lets --help <TAB>" "$tasks" lets --help ""
 assert "lets --completions <TAB>" "bash fish nushell zsh" lets --completions ""
 assert "lets --show <TAB>" "$tasks" lets --show ""
+mkdir -p colon/sub && touch colon/a:b.env
+assert "lets -E colon/<TAB> keeps colons" "colon/a:b.env colon/sub/" \
+  lets -E colon/
+assert "lets --env-file=colon/a<TAB>" "--env-file=colon/a:b.env" \
+  lets --env-file=colon/a
+assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
+mkdir -p envdir && cd envdir && touch .prod.env .dev.env
+assert "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 
 if (( fail == 0 )); then

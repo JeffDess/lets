@@ -6,11 +6,11 @@ in
 {
   ### Auto-load line ###
 
-  testNoAutoloadWhenEmpty = {
-    expr = lib.hasInfix "\n_lets_env_autoload " (env {
+  testAutoloadAlwaysEmitted = {
+    expr = lib.hasSuffix "\n_lets_env_autoload" (env {
       envFiles = [ ];
     });
-    expected = false;
+    expected = true;
   };
 
   testAutoloadEscapesNames = {

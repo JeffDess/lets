@@ -1,5 +1,6 @@
 { pkgs }:
 let
+  inherit (pkgs) lib;
   mkTask = import ../lib/mkTask.nix { inherit pkgs; };
   build = cfg: (mkTask cfg).__build "test";
   builds = cfg: (builtins.tryEval (build cfg)).success;
@@ -244,5 +245,10 @@ in
       in
       (builtins.tryEval ((mkTaskEnv base).__build "test")).success;
     expected = false;
+  };
+
+  testEnvPreambleAlwaysIncluded = {
+    expr = lib.hasInfix "_lets_env_autoload" (build (base // { run = "true"; })).app.text;
+    expected = true;
   };
 }
