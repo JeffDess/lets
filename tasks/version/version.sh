@@ -50,7 +50,7 @@ if [ "$dry_run" = true ]; then
   exit 0
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "Error: working tree is not clean; commit or stash changes first" >&2
   exit 1
 fi
