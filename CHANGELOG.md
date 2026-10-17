@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.0] - 2026-10-17
+
+### Features
+
+- Support darwin/aarch64 systems
+- Run `lets` command from anywhere on the project
+- Add browse base task
+- Add argument aliases
+- Add lint_commits base task
+- Add shorthand options to lint_commit
+- Allow combined short arguments in tasks
+
+### Bug Fixes
+
+- Task description is not escaped in help output
+- Builtins ignore NO_COLOR in output
+- Some linters do not fail even with errors
+- Dedup euo pipefail in scripts and tasks
+- Error/log are not handling color correctly
+- Flake-parts module doesn't provide packages.default
+- Version and release outputs don't handle multiline
+- Reject reserved task name and handle duplication
+- Reject empty required positionals
+- Allow shell syntax in argument descriptions
+- Show task description in single task help
+- Ignore untracked files in the version clean-tree check
+
+### Documentation
+
+- Add shell completions and auto-doc to feature list
+- Remove help and show from base tasks
+
 ## [0.1.0] - 2026-06-29
 
 ### Features
