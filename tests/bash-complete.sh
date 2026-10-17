@@ -58,8 +58,8 @@ assert_sorted() {
     fail=1
   fi
 }
-root_flags="--completions --env --env-file --help --no-env-files --show"
-root_flags="$root_flags --version -E -c -e -h -s -v"
+root_flags="--completions --env --env-file --help --no-env-files --secret"
+root_flags="$root_flags --show --version -E -S -c -e -h -s -v"
 assert_sorted "lets -<TAB> lists env flags" "$root_flags" lets "-"
 assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
 assert "lets --no-env-files <TAB>" "demo lint version" lets --no-env-files ""
@@ -93,10 +93,21 @@ assert "lets demo alice <TAB>" "" lets demo alice ""
 assert "lets --env=<TAB> offers nothing" "" lets --env =
 assert "lets --env=A=1 <TAB>" "demo lint version" lets --env = A = 1 ""
 assert "lets lint -e x nix <TAB>" "nix nix-bash" lets lint -e x nix ""
-mkdir -p envdir slashdir/sub && cd envdir && touch .prod.env .dev.env
+mkdir -p envdir-bash slashdir/sub && cd envdir-bash && touch .prod.env .dev.env
 assert_sorted "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
 assert "lets -E ../slashdir/s<TAB>" "../slashdir/sub/" lets -E ../slashdir/s
 assert "lets -E .p<TAB>" ".prod.env" lets -E ".p"
+touch .prod.enc.env .dev.enc.env
+assert_sorted "lets -S <TAB> lists secret names" "dev prod" lets -S ""
+assert "lets -S d<TAB>" "dev" lets -S "d"
+assert "lets -S dev <TAB>" "demo lint version" lets -S dev ""
+assert "lets --secret=d<TAB>" "dev" lets --secret = d
+assert "lets --secret=dev <TAB>" "demo lint version" lets --secret = dev ""
+assert "lets lint -S x nix <TAB>" "nix nix-bash" lets lint -S x nix ""
+mkdir -p project/sub && touch project/flake.nix project/.ci.enc.env
+cd project/sub || exit 1
+assert "lets -S <TAB> from a subdirectory" "ci" lets -S ""
+cd ../.. || exit 1
 assert "lets -e <TAB> offers nothing" "" lets -e ""
 assert "lets -e A=1 <TAB>" "demo lint version" lets -e A=1 ""
 assert "lets demo --locale <TAB>" "" lets demo --locale ""

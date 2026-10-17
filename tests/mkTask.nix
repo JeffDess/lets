@@ -5,6 +5,16 @@ let
   build = cfg: (mkTask cfg).__build "test";
   builds = cfg: (builtins.tryEval (build cfg)).success;
 
+  secretsFixture = {
+    command = "fakedec {}";
+    runtimeInputs = _: [ pkgs.hello ];
+  };
+  decoderFixture = import ../lib/secrets.nix { inherit pkgs; } secretsFixture;
+  decoderContext =
+    built:
+    (builtins.getContext built.app.text)
+    .${builtins.unsafeDiscardStringContext decoderFixture.package.drvPath} or { };
+
   base = {
     description = "demo";
     run = "true";
@@ -249,6 +259,95 @@ in
 
   testEnvPreambleAlwaysIncluded = {
     expr = lib.hasInfix "_lets_env_autoload" (build (base // { run = "true"; })).app.text;
+    expected = true;
+  };
+
+  ### Task secrets ###
+
+  testTaskSecretsMustBeList = {
+    expr = builds (base // { secrets = "dev"; });
+    expected = false;
+  };
+
+  testTaskSecretsNamesNotEmpty = {
+    expr = builds (base // { secrets = [ "" ]; });
+    expected = false;
+  };
+
+  testTaskSecretsNeedDecoder = {
+    expr = builds (base // { secrets = [ "dev" ]; });
+    expected = false;
+  };
+
+  testDecoderOutOfClosureWhenUnused = {
+    expr =
+      let
+        mkTaskSec = import ../lib/mkTask.nix {
+          inherit pkgs;
+          secrets = secretsFixture;
+        };
+        built = (mkTaskSec base).__build "test";
+      in
+      !builtins.elem decoderFixture.package built.runtimeInputs
+      && decoderContext built == { path = true; }
+      && lib.hasInfix (builtins.unsafeDiscardStringContext "${decoderFixture.package}/bin/lets-decoder") (
+        builtins.unsafeDiscardStringContext built.app.text
+      );
+    expected = true;
+  };
+
+  testDecoderInClosureWhenTaskDecrypts = {
+    expr =
+      let
+        mkTaskSec = import ../lib/mkTask.nix {
+          inherit pkgs;
+          secrets = secretsFixture;
+        };
+        built = (mkTaskSec (base // { secrets = [ "dev" ]; })).__build "test";
+      in
+      decoderContext built ? outputs && !(decoderContext built ? path);
+    expected = true;
+  };
+
+  testTaskKeepsItsOwnInputsAndSecrets = {
+    expr =
+      let
+        mkTaskSec = import ../lib/mkTask.nix {
+          inherit pkgs;
+          secrets = secretsFixture;
+        };
+        built =
+          (mkTaskSec (
+            base
+            // {
+              secrets = [ "dev" ];
+              runtimeInputs = [ pkgs.jq ];
+            }
+          )).__build
+            "test";
+      in
+      {
+        inherit (built) secrets;
+        inputs = map lib.getName built.runtimeInputs;
+      };
+    expected = {
+      secrets = [ "dev" ];
+      inputs = [ "jq" ];
+    };
+  };
+
+  testDecoderInClosureWithProjectFiles = {
+    expr =
+      let
+        mkTaskSec = import ../lib/mkTask.nix {
+          inherit pkgs;
+          secrets = secretsFixture // {
+            files = [ "base" ];
+          };
+        };
+        built = (mkTaskSec base).__build "test";
+      in
+      decoderContext built ? outputs && !(decoderContext built ? path);
     expected = true;
   };
 }

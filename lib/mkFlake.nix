@@ -6,6 +6,7 @@
   version ? "0.0.0",
   overlays ? [ ],
   envFiles ? [ ],
+  secrets ? null,
 }:
 let
   eachSystem =
@@ -21,9 +22,15 @@ let
     system:
     let
       pkgs = import nixpkgs { inherit system overlays; };
-      baseTasks = import ./mkBaseTasks.nix { inherit pkgs envFiles; };
+      decoder = import ./secrets.nix { inherit pkgs; } secrets;
+      baseTasks = import ./mkBaseTasks.nix { inherit pkgs envFiles secrets; };
       taskSet = import ./loadTasks.nix {
-        inherit pkgs system envFiles;
+        inherit
+          pkgs
+          system
+          envFiles
+          secrets
+          ;
         src = tasks;
         specialArgs = {
           inherit baseTasks;
@@ -35,11 +42,11 @@ let
         tasks = taskSet;
       };
       letsCmd = import ./mkLets.nix {
-        inherit pkgs version;
+        inherit pkgs version secrets;
         tasks = taskSet;
       };
       letsShell = pkgs.mkShell {
-        packages = [ letsCmd ];
+        packages = [ letsCmd ] ++ pkgs.lib.optional (decoder != null) decoder.package;
         shellHook = ''
           __lets_bash_version="''${BASH_VERSION:-}"
           if [ -n "$__lets_bash_version" ] && type complete >/dev/null 2>&1; then

@@ -34,8 +34,16 @@ check "lets --completions <TAB>" "bash fish nushell zsh" 'lets --completions '
 check "lets --show <TAB>" $tasks 'lets --show '
 check "lets --show li<TAB>" "lint lint_nix lint_nix-bash" 'lets --show li'
 check "lets -E .prod.env <TAB>" "demo lint version" 'lets -E .prod.env '
-mkdir -p envdir; and cd envdir; and touch .prod.env .dev.env
+mkdir -p envdir-fish; and cd envdir-fish; and touch .prod.env .dev.env
 check "lets -E <TAB> lists files" ".dev.env .prod.env" 'lets -E '
+touch .prod.enc.env .dev.enc.env
+check "lets -S <TAB> lists secret names" "dev prod" 'lets -S '
+check "lets --secret=d<TAB>" "--secret=dev" 'lets --secret=d'
+check "lets --env-file=.d<TAB>" "--env-file=.dev.enc.env --env-file=.dev.env" \
+    'lets --env-file=.d'
+set root_flags "--completions --env --env-file --help --no-env-files --secret"
+set root_flags "$root_flags --show --version -E -S -c -e -h -s -v"
+check "lets -<TAB> lists env flags" $root_flags 'lets -'
 check "lets demo --locale <TAB>" "" 'lets demo --locale '
 
 if test $fail -eq 0

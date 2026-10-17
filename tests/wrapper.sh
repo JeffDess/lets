@@ -5,8 +5,9 @@ lets_bin="$1"
 stub="$(mktemp -d)"
 cat >"$stub/nix" <<EOF
 #!$BASH
-printf 'sources=%s no=%s vars=%s args=%s%s\n' "\${LETS_ENV_SOURCES-unset}" \
-  "\${LETS_NO_ENV_FILES-unset}" "\${LETS_ENV_VARS-unset}" "\$*" \
+printf 'sources=%s no=%s vars=%s args=%s%s\n' \
+  "\${LETS_ENV_SOURCES-unset}" "\${LETS_NO_ENV_FILES-unset}" \
+  "\${LETS_ENV_VARS-unset}" "\$*" \
   "\${LETS_ENV_FILES+ files=\$LETS_ENV_FILES}"
 EOF
 chmod +x "$stub/nix"
@@ -30,20 +31,52 @@ assert() {
 }
 run_args='run --option warn-dirty false .#demo --'
 
-assert "no flag" "sources=unset no=unset vars=unset args=$run_args" demo
+base="sources=unset no=unset vars=unset"
+assert "no flag" "$base args=$run_args" demo
 assert "-E" "sources=file:$PWD/a.env no=unset vars=unset args=$run_args" \
   -E a.env demo
-assert "two -E" "sources=file:$PWD/a.env
+assert "two -E" \
+  "sources=file:$PWD/a.env
 file:$PWD/b.env no=unset vars=unset args=$run_args" \
   -E a.env --env-file b.env demo
 assert "--env-file=" \
   "sources=file:$PWD/a.env no=unset vars=unset args=$run_args" \
   --env-file=a.env demo
-assert "--no-env-files" "sources=unset no=1 vars=unset args=$run_args" \
+assert "--no-env-files" \
+  "sources=unset no=1 vars=unset args=$run_args" \
   --no-env-files demo
 assert "task args pass through" \
   "sources=file:$PWD/a.env no=unset vars=unset args=$run_args --locale fr" \
   -E a.env demo --locale fr
+assert "-e" "sources=unset no=unset vars=A=1 args=$run_args" \
+  -e A=1 demo
+assert "two -e" "sources=unset no=unset vars=A=1
+B=x=y args=$run_args" -e A=1 --env B=x=y demo
+assert "--env=" \
+  "sources=unset no=unset vars=A=1 args=$run_args" \
+  --env=A=1 demo
+assert "-e without =" \
+  'ERROR: --env needs KEY=VALUE with a valid name' -e A demo
+assert "-e without a value" \
+  'ERROR: --env needs KEY=VALUE with a valid name' -e
+assert "-S" "sources=secret:dev no=unset vars=unset args=$run_args" \
+  -S dev demo
+assert "two -S" \
+  "sources=secret:dev
+secret:ci no=unset vars=unset args=$run_args" \
+  -S dev --secret ci demo
+assert "--secret=" \
+  "sources=secret:dev no=unset vars=unset args=$run_args" \
+  --secret=dev demo
+assert "-S without a value" "ERROR: --secret needs a name" -S
+assert "-S with a newline" "ERROR: --secret value cannot span lines" \
+  -S $'dev\nci' demo
+assert "-S before -c" "ERROR: env flags apply to a task, not to -c" \
+  -S dev -c
+assert "-E then -S keep flag order" \
+  "sources=file:$PWD/a.env
+secret:dev no=unset vars=unset args=$run_args" \
+  -E a.env -S dev demo
 assert "absolute -E stays as is" \
   "sources=file:/abs/a.env no=unset vars=unset args=$run_args" \
   -E /abs/a.env demo
@@ -64,15 +97,9 @@ files=$PWD/a.env:/abs/b.env:\$D/c.env" demo
 LETS_ENV_FILES=':a.env::b.env:' assert "empty LETS_ENV_FILES entries" \
   "sources=unset no=unset vars=unset args=$run_args \
 files=$PWD/a.env:$PWD/b.env" demo
-assert "-e" "sources=unset no=unset vars=A=1 args=$run_args" -e A=1 demo
-assert "two -e" "sources=unset no=unset vars=A=1
-B=x=y args=$run_args" -e A=1 --env B=x=y demo
-assert "--env=" "sources=unset no=unset vars=A=1 args=$run_args" \
-  --env=A=1 demo
-assert "-e without =" \
-  'ERROR: --env needs KEY=VALUE with a valid name' -e A demo
-assert "-e without a value" \
-  'ERROR: --env needs KEY=VALUE with a valid name' -e
+touch g1.env
+LETS_ENV_FILES='g*.env' assert "LETS_ENV_FILES entries are not globbed" \
+  "sources=unset no=unset vars=unset args=$run_args files=$PWD/g*.env" demo
 assert "-e rejects a newline" 'ERROR: --env value cannot span lines' \
   -e $'A=1\nB=2' demo
 assert "-e rejects an invalid name" \
@@ -81,10 +108,18 @@ assert "-e rejects an invalid name" \
 assert "-E without a value" "ERROR: --env-file needs a file" -E
 assert "--env-file= without a value" "ERROR: --env-file needs a file" \
   --env-file= demo
+assert "--secret= without a value" "ERROR: --secret needs a name" \
+  --secret= demo
+assert "--env= without a value" \
+  'ERROR: --env needs KEY=VALUE with a valid name' --env= demo
+assert "--env-file= keeps the rest after the first =" \
+  "sources=file:$PWD/=a.env no=unset vars=unset args=$run_args" \
+  --env-file==a.env demo
 assert "-E with a newline" "ERROR: --env-file value cannot span lines" \
   -E $'a\nb.env' demo
 assert "-E without a task" \
-  "Usage: lets [-E <file>|-e KEY=VALUE]... [--no-env-files] <task> [args...]" \
+  "Usage: lets [-E <file>|-S <name>|-e KEY=VALUE]... [--no-env-files] \
+<task> [args...]" \
   -E a.env
 assert "-E before --help" "ERROR: env flags apply to a task, not to --help" \
   -E a.env --help

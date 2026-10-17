@@ -1,9 +1,11 @@
 {
   pkgs,
   envFiles ? [ ],
+  secrets ? null,
 }:
 let
   inherit (pkgs) lib;
+  decoder = import ./secrets.nix { inherit pkgs; } secrets;
   args' = import ./args.nix { inherit lib; };
   validate = import ./validate.nix { inherit lib; };
   buildParser = import ./parser.nix { inherit lib; };
@@ -16,6 +18,7 @@ in
   description,
   args ? { },
   runtimeInputs ? [ ],
+  secrets ? [ ],
   run,
 }:
 {
@@ -24,12 +27,32 @@ in
     let
       resolvedName = if name != null then name else key;
       normArgs = args'.normalize args;
-      envPreamble = mkEnvPreamble { inherit envFiles argNames; };
+      decrypts = decoder != null && ((secretsOk && secrets != [ ]) || decoder.files != [ ]);
+      decoderInputs = lib.optional decrypts decoder.package;
+      allInputs = runtimeInputs ++ decoderInputs;
+      envPreamble = mkEnvPreamble {
+        inherit
+          envFiles
+          decoder
+          decrypts
+          argNames
+          ;
+      };
+      secretsOk = builtins.isList secrets && builtins.all (s: builtins.isString s && s != "") secrets;
+      secretLoads = lib.concatMapStringsSep "\n" (
+        n: "_lets_env_secret ${lib.escapeShellArg n} 1 explicit secrets"
+      ) (if secretsOk then secrets else [ ]);
+      secretErrors =
+        lib.optional (!secretsOk) "secrets must be a list of non-empty strings"
+        ++ lib.optional (
+          secretsOk && secrets != [ ] && decoder == null
+        ) "secrets needs a project-wide secrets.command";
       errors =
         validate {
           rawArgs = args;
           inherit normArgs;
         }
+        ++ secretErrors
         ++ map (lib.removePrefix "lets: ") envFilesErrors;
       argParser = buildParser {
         name = resolvedName;
@@ -40,15 +63,29 @@ in
         inherit normArgs;
         helpScan = true;
       };
-      envLoad = "${helpScan}\n\nif ! _lets_wants_help \"$@\"; then\n${envPreamble}\nfi";
+      envLoad = lib.concatStringsSep "\n" (
+        [
+          helpScan
+          ""
+          "if ! _lets_wants_help \"$@\"; then"
+          envPreamble
+        ]
+        ++ lib.optional (secretsOk && secrets != [ ]) secretLoads
+        ++ [ "fi" ]
+      );
       argNames = builtins.attrNames normArgs;
     in
     lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
-      inherit description run runtimeInputs;
+      inherit
+        description
+        run
+        runtimeInputs
+        secrets
+        ;
       args = normArgs;
       app = pkgs.writeShellApplication {
         name = resolvedName;
-        inherit runtimeInputs;
+        runtimeInputs = allInputs;
         excludeShellChecks = [ "SC2329" ];
         text = lib.concatStringsSep "\n\n" [
           fmtPreamble

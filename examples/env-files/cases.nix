@@ -99,7 +99,7 @@
   {
     task = "bad_key";
     status = 1;
-    stderr = "invalid variable name '1BAD'";
+    stderr = "bad-key.env:1: invalid variable name";
   }
   {
     task = "no_equals";
@@ -241,7 +241,7 @@
   {
     task = "empty_key";
     status = 1;
-    stderr = "invalid variable name ''";
+    stderr = "empty-key.env:1: invalid variable name";
   }
   {
     task = "options";

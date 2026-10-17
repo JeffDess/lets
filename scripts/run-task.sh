@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+flake_root() {
+  local dir="$PWD"
+  while :; do
+    if [ -e "$dir/flake.nix" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    [ "$dir" = "/" ] && return 1
+    dir="${dir%/*}"
+    [ -z "$dir" ] && dir="/"
+  done
+}
+
 if [ "${1:-}" = "__complete" ]; then
   shift
   argc=$#
@@ -14,12 +27,11 @@ if [ "${1:-}" = "__complete" ]; then
   while [ "$__i" -lt "$argc" ]; do
     tok="${!__i}"
     case "$tok" in
-    -E | --env-file | -e | --env)
+    -*)
       [ "$path" = lets ] || break
-      __i=$((__i + 1))
+      key="${path}##${tok}"
+      [ -z "${_LETS_OPTNEEDS[$key]+x}" ] || __i=$((__i + 1))
       ;;
-    --env-file=* | --env=* | --no-env-files) [ "$path" = lets ] || break ;;
-    -*) break ;;
     *)
       cand="$path $tok"
       [ -n "${_LETS_NODE[$cand]+x}" ] || break
@@ -36,7 +48,7 @@ if [ "${1:-}" = "__complete" ]; then
 
   inline=''
   case "$cur" in
-  --env-file=* | --env=*)
+  --env-file=* | --env=* | --secret=*)
     inline="${cur%%=*}="
     prev="${cur%%=*}"
     cur="${cur#*=}"
@@ -46,6 +58,19 @@ if [ "${1:-}" = "__complete" ]; then
   if [ "$path" = lets ]; then
     case "$prev" in
     -e | --env) exit 0 ;;
+    -S | --secret)
+      pre="${SECRETS_PATTERN%%\{name\}*}"
+      suf="${SECRETS_PATTERN#*\{name\}}"
+      if [ -n "$pre$suf" ]; then
+        root="$(flake_root)" || root="$PWD"
+        shopt -s nullglob dotglob
+        for f in "$root/$pre$cur"*"$suf"; do
+          f="${f#"$root/$pre"}"
+          printf '%s%s\n' "$inline" "${f%"$suf"}"
+        done
+      fi
+      exit 0
+      ;;
     -E | --env-file)
       shopt -s nullglob dotglob
       glob="$cur"
@@ -80,16 +105,6 @@ if [ "${1:-}" = "__complete" ]; then
   exit 0
 fi
 
-usage() {
-  echo -n "Usage: lets [-E <file>|-e KEY=VALUE]... [--no-env-files]" >&2
-  echo " <task> [args...]" >&2
-  exit 1
-}
-
-if [ "$#" -lt 1 ]; then
-  usage
-fi
-
 env_source() {
   export LETS_ENV_SOURCES="${LETS_ENV_SOURCES:+$LETS_ENV_SOURCES$'\n'}$1"
 }
@@ -107,17 +122,21 @@ from_pwd() {
   esac
 }
 
-env_file() {
-  case "${1:-}" in
+one_line() {
+  case "$2" in
   '')
-    error "--env-file needs a file"
+    error "$1 needs $3"
     exit 1
     ;;
   *$'\n'*)
-    error "--env-file value cannot span lines"
+    error "$1 value cannot span lines"
     exit 1
     ;;
   esac
+}
+
+env_file() {
+  one_line --env-file "${1:-}" "a file"
   from_pwd "$1"
   env_source "file:$from_pwd"
 }
@@ -138,38 +157,38 @@ env_files_from_pwd() {
 }
 
 env_var() {
-  case "${1:-}" in
-  *$'\n'*)
-    error "--env value cannot span lines"
-    exit 1
-    ;;
-  esac
-  if [[ ! ${1:-} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+  one_line --env "${1:-}" "KEY=VALUE with a valid name"
+  if [[ ! $1 =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
     error "--env needs KEY=VALUE with a valid name"
     exit 1
   fi
   export LETS_ENV_VARS="${LETS_ENV_VARS:+$LETS_ENV_VARS$'\n'}$1"
 }
 
+secret_name() {
+  one_line --secret "${1:-}" "a name"
+  env_source "secret:$1"
+}
+
 env_flags=''
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+  --env-file=* | --env=* | --secret=*)
+    set -- "${1%%=*}" "${1#*=}" "${@:2}"
+    continue
+    ;;
   -E | --env-file)
     env_file "${2:-}"
     shift 2
-    ;;
-  --env-file=*)
-    env_file "${1#--env-file=}"
-    shift
     ;;
   -e | --env)
     env_var "${2:-}"
     shift 2
     ;;
-  --env=*)
-    env_var "${1#--env=}"
-    shift
+  -S | --secret)
+    secret_name "${2:-}"
+    shift 2
     ;;
   --no-env-files)
     export LETS_NO_ENV_FILES=1
@@ -181,25 +200,14 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "$#" -lt 1 ]; then
-  usage
+  echo -n "Usage: lets [-E <file>|-S <name>|-e KEY=VALUE]..." >&2
+  echo " [--no-env-files] <task> [args...]" >&2
+  exit 1
 fi
 
 if [ -n "${LETS_ENV_FILES:-}" ]; then
   env_files_from_pwd
 fi
-
-flake_root() {
-  local dir="$PWD"
-  while :; do
-    if [ -e "$dir/flake.nix" ]; then
-      printf '%s\n' "$dir"
-      return 0
-    fi
-    [ "$dir" = "/" ] && return 1
-    dir="${dir%/*}"
-    [ -z "$dir" ] && dir="/"
-  done
-}
 
 run_target() {
   local root
@@ -208,6 +216,7 @@ run_target() {
     exit 1
   fi
   cd "$root" || exit 1
+  export LETS_SECRETS_DIR="$root"
   exec nix run --option warn-dirty false ".#$1" -- "${@:2}"
 }
 

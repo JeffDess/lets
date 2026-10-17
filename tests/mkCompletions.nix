@@ -240,6 +240,21 @@ in
     };
   };
 
+  testRootSecretOption = {
+    expr =
+      let
+        opts = m.options [ ];
+        o = lib.head (builtins.filter (o: o.long == "--secret") opts);
+      in
+      {
+        inherit (o) short takesValue;
+      };
+    expected = {
+      short = "S";
+      takesValue = true;
+    };
+  };
+
   testRootEnvFileOption = {
     expr =
       let
