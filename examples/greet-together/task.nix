@@ -14,7 +14,7 @@
     run = ''
       # shellcheck disable=2154,2289,1089
       msg="Hello $firstname''${lastname:+ $lastname}!"
-      if [ $uppercase = true ]; then
+      if [ "$uppercase" = true ]; then
         msg="''${msg^^}"
       fi
       echo "$msg"

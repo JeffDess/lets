@@ -2,7 +2,7 @@
 
 # Strict attr names that usually contain shell code in nixpkgs-style files.
 # editorconfig-checker-disable-next-line
-ATTR_RE='(pre[a-zA-Z0-9_]*|post[a-zA-Z0-9_]*|[a-zA-Z0-9_]*Phase|shellHook|script|buildCommand|checkPhase|installCheckPhase|text)'
+ATTR_RE='(pre[a-zA-Z0-9_]*|post[a-zA-Z0-9_]*|[a-zA-Z0-9_]*Phase|shellHook|run|script|buildCommand|checkPhase|installCheckPhase|text)'
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
@@ -39,6 +39,7 @@ for file in "${nix_files[@]}"; do
         print "#!/usr/bin/env bash" > block_path
         # editorconfig-checker-disable-next-line
         print "# source: " file ":" block_start " attr=" block_attr >> block_path
+        if (attr == "run") print "# shellcheck disable=SC2154" >> block_path
       }
 
       function end_block() {
