@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1] - 2026-10-17
+
+### Bug Fixes
+
+- Lint inline run fragments in lint_nix-bash
+- Report lint_nix-bash result like the other linters
+
+### Performance
+
+- Use gitMinimal in the tasks with git in runtimeInputs
+
 ## [0.2.0] - 2026-10-17
 
 ### Features

@@ -21,7 +21,7 @@
       flake-parts,
     }:
     let
-      version = "0.2.0";
+      version = "0.2.1";
       systems = [
         "x86_64-linux"
         "aarch64-linux"
