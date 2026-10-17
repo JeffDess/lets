@@ -119,12 +119,12 @@ for file in "${nix_files[@]}"; do
 done
 
 if ((extract_count == 0)); then
-  echo "No shell fragments extracted"
+  echo "✅ Nix-Bash linter passed (0 shell fragment(s))"
   exit 0
 fi
 
 mapfile -t frags < <(find "$tmpdir" -type f -name '*.sh' | sort)
 
-echo "Extracted ${#frags[@]} shell fragment(s)"
 shfmt -i 2 -d "${frags[@]}"
 shellcheck "${frags[@]}"
+echo "✅ Nix-Bash linter passed (${#frags[@]} shell fragment(s))"
