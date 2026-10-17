@@ -3,16 +3,18 @@ let
   inherit (pkgs) lib;
   render = import ../lib/render.nix { inherit pkgs; };
 
-  helpLinesOf =
+  renderDeploy =
     description:
-    (render {
+    render {
       tasks.deploy = {
         inherit description;
         run = "true";
         runtimeInputs = [ ];
         args = { };
       };
-    }).helpLines;
+    };
+
+  helpLinesOf = description: (renderDeploy description).helpLines;
 
   aliasRender = render {
     tasks.browse = {
@@ -57,5 +59,17 @@ in
   testHelpDescriptionNotInterpolatedRaw = {
     expr = lib.hasInfix ("\"" + tricky) (helpLinesOf tricky);
     expected = false;
+  };
+
+  ### Single task description ###
+
+  testTaskHelpShowsDescription = {
+    expr = lib.hasInfix (lib.escapeShellArg tricky) (renderDeploy tricky).taskHelp;
+    expected = true;
+  };
+
+  testShowShowsDescription = {
+    expr = lib.hasInfix (lib.escapeShellArg tricky) (renderDeploy tricky).showDispatch;
+    expected = true;
   };
 }

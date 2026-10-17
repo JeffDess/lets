@@ -137,7 +137,11 @@ let
           map (fn: if (args.${fn}.required or false) then " <${fn}>" else " [${fn}]") s.posNames
         );
     in
-    section "Usage" [ (plain "  ${name}${suffix}") ]
+    [
+      "echo"
+      (plain tasks.${name}.description)
+    ]
+    ++ section "Usage" [ (plain "  ${name}${suffix}") ]
     ++ lib.optionals (s.optNames != [ ]) (section "Options" (map (detailLine "  " args) s.optNames))
     ++ lib.optionals (s.flagNames != [ ]) (section "Flags" (map (detailLine "  " args) s.flagNames))
     ++ lib.optionals (s.posNames != [ ]) (section "Arguments" (map (detailLine "  " args) s.posNames));
