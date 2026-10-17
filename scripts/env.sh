@@ -62,8 +62,14 @@ _lets_env_trim() {
 
 _lets_env_file() {
   local IFS= _lets_file="$1" _lets_override="$2" _lets_mode="$3" _lets_n=0
-  local _lets_label="${4:-$1}" _lets_line _lets_key _lets_value _lets_i
+  local _lets_label="${4:-$1}" _lets_secret="${5:-}" _lets_line _lets_key
+  local _lets_value _lets_i _lets_trim _lets_tag=load_env _lets_filled=''
+  local _lets_hint=''
   local -a _lets_keys=() _lets_values=()
+  if [ -n "$_lets_secret" ]; then
+    _lets_tag=secrets
+    _lets_hint=', decoder output must be KEY=VALUE lines'
+  fi
   while read -r _lets_line || [ -n "$_lets_line" ]; do
     _lets_n=$((_lets_n + 1))
     if [ "$_lets_n" = 1 ]; then
@@ -79,43 +85,52 @@ _lets_env_file() {
       _lets_line="$_lets_trim"
     fi
     if [[ $_lets_line != *=* ]]; then
-      error "load_env: $_lets_label:$_lets_n: missing '='$_lets_env_from"
-      return 1
+      _lets_env_bad "$_lets_label:$_lets_n: missing '='$_lets_hint"
+      return
     fi
     _lets_env_trim "${_lets_line%%=*}"
     _lets_key="$_lets_trim"
     if [[ ! $_lets_key =~ ^$_LETS_ENV_NAME$ ]]; then
-      error "load_env: $_lets_label:$_lets_n: invalid variable name \
-'$_lets_key'$_lets_env_from"
-      return 1
+      _lets_env_bad "$_lets_label:$_lets_n: invalid variable name$_lets_hint"
+      return
     fi
     _lets_env_trim "${_lets_line#*=}"
     _lets_value="$_lets_trim"
+    if [ -n "$_lets_secret" ] && [[ $_lets_value == =* ]]; then
+      _lets_env_bad "$_lets_label:$_lets_n: value starts with '='$_lets_hint"
+      return
+    fi
     if [[ $_lets_value == [\"\']* ]]; then
       if [ "${#_lets_value}" -lt 2 ] ||
         [ "${_lets_value: -1}" != "${_lets_value:0:1}" ]; then
         if [[ ${_lets_value:1} == *"${_lets_value:0:1}"* ]]; then
-          error "load_env: $_lets_label:$_lets_n: text after the closing \
-quote, inline comments are not supported$_lets_env_from"
+          _lets_env_bad "$_lets_label:$_lets_n: text after the closing \
+quote, inline comments are not supported"
         else
-          error "load_env: $_lets_label:$_lets_n: unmatched \
-quote$_lets_env_from"
+          _lets_env_bad "$_lets_label:$_lets_n: unmatched quote"
         fi
-        return 1
+        return
       fi
       _lets_value="${_lets_value:1:${#_lets_value}-2}"
     fi
+    if [ -n "$_lets_value" ]; then
+      _lets_filled=1
+    fi
     if _lets_env_protected "$_lets_key"; then
-      warn "load_env: $_lets_label:$_lets_n: $_lets_key is reserved, \
+      warn "$_lets_tag: $_lets_label:$_lets_n: $_lets_key is reserved, \
 skipped$_lets_env_from"
       continue
     fi
     _lets_keys+=("$_lets_key")
     _lets_values+=("$_lets_value")
   done <"$_lets_file" || {
-    error "load_env: cannot read $_lets_label$_lets_env_from"
+    error "$_lets_tag: cannot read $_lets_label$_lets_env_from"
     return 1
   }
+  if [ -n "$_lets_secret" ] && [ -z "$_lets_filled" ]; then
+    _lets_env_bad "$_lets_label printed no KEY=VALUE line with a value"
+    return
+  fi
   for _lets_i in "${!_lets_keys[@]}"; do
     _lets_key="${_lets_keys[_lets_i]}"
     _lets_value="${_lets_values[_lets_i]}"
@@ -130,6 +145,14 @@ skipped$_lets_env_from"
       _LETS_ENV_PINNED["$_lets_key"]=1
     fi
   done
+}
+
+_lets_env_bad() {
+  if [ -n "$_lets_secret" ] && _lets_env_lenient "$1"; then
+    return 0
+  fi
+  error "$_lets_tag: $1$_lets_env_from"
+  return 1
 }
 
 _lets_env_absent() {
@@ -194,6 +217,62 @@ _lets_env_expand() {
     fi
   done
   _lets_env_path+="$_lets_rest"
+}
+
+_lets_env_secret() {
+  local - _lets_name="$1" _lets_override="$2" _lets_mode="$3" _lets_arg
+  local _lets_out _lets_status=0 _lets_env_from="${4:+ (from $4)}" _lets_dir=.
+  set +x
+  if [ -z "$_LETS_SECRET_BIN" ]; then
+    error "secrets: no decoder configured (secrets.command)$_lets_env_from"
+    return 1
+  fi
+  if [ ! -x "$_LETS_SECRET_BIN" ] &&
+    ! nix-store --realise --no-gc-warning "$_LETS_SECRET_DRV" >/dev/null; then
+    error "secrets: cannot build the decoder$_lets_env_from"
+    return 1
+  fi
+  if [ "$_lets_mode" = cli ]; then
+    _lets_dir="$LETS_SECRETS_DIR"
+    if [ ! -d "$_lets_dir" ]; then
+      error "secrets: LETS_SECRETS_DIR $_lets_dir is not a \
+directory$_lets_env_from"
+      return 1
+    fi
+  fi
+  _lets_arg="${_LETS_SECRET_PATTERN/\{name\}/"$_lets_name"}"
+  _lets_out="$(cd -- "$_lets_dir" && "$_LETS_SECRET_BIN" "$_lets_arg")" ||
+    _lets_status=$?
+  if [ "$_lets_status" -eq 126 ] || [ "$_lets_status" -eq 127 ]; then
+    error "secrets: $_lets_arg: decoder command not found or not executable \
+(exit $_lets_status)$_lets_env_from; check secrets.command and \
+secrets.runtimeInputs"
+    return 1
+  fi
+  if [ "$_lets_status" -ne 0 ]; then
+    _lets_env_lenient "$_lets_arg failed (exit $_lets_status)" && return 0
+    error "secrets: $_lets_arg failed (exit $_lets_status)$_lets_env_from"
+    return 1
+  fi
+  if [[ $_lets_out != *[![:space:]]* ]]; then
+    _lets_env_lenient "$_lets_arg printed nothing" && return 0
+    error "secrets: $_lets_arg printed nothing$_lets_env_from"
+    return 1
+  fi
+  _lets_env_file <(printf '%s\n' "$_lets_out") "$_lets_override" \
+    "$_lets_mode" "$_lets_arg" 1
+}
+
+_lets_env_lenient() {
+  [ "$_lets_mode" = auto ] || return 1
+  case "$_LETS_SECRET_ON_ERROR" in
+  warn)
+    warn "secrets: $1, skipped$_lets_env_from"
+    return 0
+    ;;
+  ignore) return 0 ;;
+  esac
+  return 1
 }
 
 _lets_env_cli_file() {
@@ -266,6 +345,9 @@ _lets_env_autoload() {
 skipped$_lets_env_from"
       fi
     done
+    for _lets_entry in "${_LETS_SECRET_FILES[@]}"; do
+      _lets_env_secret "$_lets_entry" '' auto secrets.files || return 1
+    done
   fi
   if [ -n "${LETS_ENV_FILES:-}" ]; then
     _lets_env_anchor || return 1
@@ -273,10 +355,20 @@ skipped$_lets_env_from"
   for _lets_entry in ${LETS_ENV_FILES:-}; do
     _lets_env_cli_file "$_lets_entry" LETS_ENV_FILES || return 1
   done
+  if [[ -n ${LETS_SECRETS:-} || ${LETS_ENV_SOURCES:-} == *secret:* ]]; then
+    export LETS_SECRETS_DIR="${LETS_SECRETS_DIR:-$PWD}"
+  fi
+  for _lets_entry in ${LETS_SECRETS:-}; do
+    [ -n "$_lets_entry" ] || continue
+    _lets_env_secret "$_lets_entry" 1 cli LETS_SECRETS || return 1
+  done
   IFS=$'\n'
   for _lets_entry in ${LETS_ENV_SOURCES:-}; do
     case "$_lets_entry" in
     file:*) _lets_env_cli_file "${_lets_entry#file:}" --env-file || return 1 ;;
+    secret:*)
+      _lets_env_secret "${_lets_entry#secret:}" 1 cli --secret || return 1
+      ;;
     *)
       error "load_env: bad LETS_ENV_SOURCES entry '$_lets_entry'"
       return 1

@@ -1,8 +1,9 @@
 {
   pkgs,
   envFiles ? [ ],
+  secrets ? null,
 }:
 import ./loadTasks.nix {
-  inherit pkgs envFiles;
+  inherit pkgs envFiles secrets;
   src = ../tasks;
 }

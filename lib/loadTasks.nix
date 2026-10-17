@@ -5,10 +5,12 @@
   specialArgs ? { },
   extraTasks ? { },
   envFiles ? [ ],
+  secrets ? null,
 }:
 let
   inherit (pkgs) lib;
-  mkTask = import ./mkTask.nix { inherit pkgs envFiles; };
+  decoder = import ./secrets.nix { inherit pkgs; } secrets;
+  mkTask = import ./mkTask.nix { inherit pkgs envFiles secrets; };
   mkTasks = import ./mkTasks.nix;
 
   reserved = [
@@ -65,6 +67,8 @@ let
     + " (help/show/completions are flag apps; lets/default are packages)";
   envFilesErrors = import ./envFiles.nix { inherit lib; } envFiles;
 in
-lib.throwIf (envFilesErrors != [ ]) (builtins.head envFilesErrors) (
-  lib.throwIf (reservedUsed != [ ]) reservedMsg result
+builtins.seq decoder (
+  lib.throwIf (envFilesErrors != [ ]) (lib.concatStringsSep "\n" envFilesErrors) (
+    lib.throwIf (reservedUsed != [ ]) reservedMsg result
+  )
 )

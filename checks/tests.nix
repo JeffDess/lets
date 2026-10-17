@@ -111,6 +111,18 @@
     let
       fixtureLets = import ../tests/fixture-lets.nix { inherit pkgs; };
       L = "${fixtureLets}/bin/lets";
+      plainPatternLets = import ../lib/mkLets.nix {
+        inherit pkgs;
+        inherit (import ../tests/fixture.nix { inherit pkgs; }) tasks;
+      };
+      dirPatternLets = import ../lib/mkLets.nix {
+        inherit pkgs;
+        inherit (import ../tests/fixture.nix { inherit pkgs; }) tasks;
+        secrets = {
+          command = "true {}";
+          pattern = "secrets/{name}.yaml";
+        };
+      };
     in
     pkgs.runCommand "check-completions"
       {
@@ -126,7 +138,8 @@
         fail=0
 
         echo "wrapper"
-        (cd "$TMPDIR" && bash ${../tests/wrapper.sh} ${L}) || fail=1
+        (mkdir "$TMPDIR/wrapper" && cd "$TMPDIR/wrapper" &&
+          bash ${../tests/wrapper.sh} ${L}) || fail=1
         echo "bash"
         bash ${../tests/bash-complete.sh} ${L} ${../completions/lets.bash} || fail=1
         echo "zsh"
@@ -135,6 +148,23 @@
         fish ${../tests/fish-complete.fish} ${L} ${../completions/lets.fish} || fail=1
         echo "nushell"
         bash ${../tests/nu-complete.sh} ${L} ${../completions/lets.nu} || fail=1
+        echo "secret names"
+        touch "$TMPDIR/flake.nix" "$TMPDIR/dev"
+        if [ -n "$(cd "$TMPDIR" && ${plainPatternLets}/bin/lets __complete lets -S "")" ]; then
+          echo "  ❌ lets -S <TAB> offers nothing when pattern is {name}"
+          fail=1
+        else
+          echo "  ✅ lets -S <TAB> offers nothing when pattern is {name}"
+        fi
+        mkdir "$TMPDIR/secrets"
+        touch "$TMPDIR/secrets/ci.yaml" "$TMPDIR/secrets/other.txt"
+        got="$(cd "$TMPDIR" && ${dirPatternLets}/bin/lets __complete lets -S "")"
+        if [ "$got" = ci ]; then
+          echo "  ✅ lets -S <TAB> strips a directory in the pattern"
+        else
+          echo "  ❌ lets -S <TAB> strips a directory in the pattern (got: $got)"
+          fail=1
+        fi
 
         if [ "$fail" = 0 ]; then
           touch "$out"

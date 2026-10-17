@@ -67,8 +67,11 @@ assert "lets -E colon/<TAB> keeps colons" "colon/a:b.env colon/sub/" \
 assert "lets --env-file=colon/a<TAB>" "--env-file=colon/a:b.env" \
   lets --env-file=colon/a
 assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
-mkdir -p envdir && cd envdir && touch .prod.env .dev.env
+mkdir -p envdir-zsh && cd envdir-zsh && touch .prod.env .dev.env
 assert "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
+touch .prod.enc.env .dev.enc.env
+assert "lets -S <TAB> lists secret names" "dev prod" lets -S ""
+assert "lets --secret=d<TAB>" "--secret=dev" lets --secret=d
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 
 if (( fail == 0 )); then

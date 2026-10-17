@@ -3,6 +3,8 @@ let
   loadTasks = import ../lib/loadTasks.nix;
   inherit (pkgs) lib;
   envFilesErrors = import ../lib/envFiles.nix { inherit lib; };
+  secretsErrors = import ../lib/secretsErrors.nix { inherit lib; };
+  withCommand = extra: secretsErrors ({ command = "sops -d {}"; } // extra);
   pathsMsg = ''lets: envFiles must be strings (".env"), not paths: they are read at runtime, not copied to the store'';
   loadsWith =
     extra: src:
@@ -122,6 +124,159 @@ in
         };
       in
       lib.hasInfix "_lets_env_autoload .env" bt.browse.app.text;
+    expected = true;
+  };
+
+  ### secrets ###
+
+  testSecretsCommandNeedsBraces = {
+    expr = loadsWith {
+      secrets.command = "sops -d";
+    } (inlineTask "greet");
+    expected = false;
+  };
+
+  testSecretsCommandAccepted = {
+    expr = loadsWith {
+      secrets.command = "sops -d {}";
+    } (inlineTask "greet");
+    expected = true;
+  };
+
+  testSecretsOnErrorValidated = {
+    expr = loadsWith {
+      secrets = {
+        command = "sops -d {}";
+        onError = "retry";
+      };
+    } (inlineTask "greet");
+    expected = false;
+  };
+
+  testSecretsPatternNeedsName = {
+    expr = loadsWith {
+      secrets = {
+        command = "sops -d {}";
+        pattern = ".enc.env";
+      };
+    } (inlineTask "greet");
+    expected = false;
+  };
+
+  testSecretsFilesMustBeStrings = {
+    expr = loadsWith {
+      secrets = {
+        command = "sops -d {}";
+        files = "base";
+      };
+    } (inlineTask "greet");
+    expected = false;
+  };
+
+  testSecretsUnknownKeyRejected = {
+    expr = loadsWith {
+      secrets = {
+        command = "sops -d {}";
+        extra = "{name}";
+      };
+    } (inlineTask "greet");
+    expected = false;
+  };
+
+  testSecretsNotAttrsMessage = {
+    expr = secretsErrors "sops -d {}";
+    expected = [ ''lets: secrets must be an attribute set, e.g. { command = "sops -d {}"; }'' ];
+  };
+
+  testSecretsCommandMissingMessage = {
+    expr = secretsErrors { pattern = "{name}"; };
+    expected = [ "lets: secrets.command is required" ];
+  };
+
+  testSecretsCommandTypeMessage = {
+    expr = secretsErrors { command = 42; };
+    expected = [ "lets: secrets.command must be a string or a list of words" ];
+  };
+
+  testSecretsCommandSlotMessage = {
+    expr = secretsErrors { command = "sops --file={}"; };
+    expected = [ "lets: secrets.command must contain {} as a word of its own" ];
+  };
+
+  testSecretsCommandSplitsOnWhitespace = {
+    expr = map (c: secretsErrors { command = c; }) [
+      "sops\t-d {}"
+      "\n  sops -d\n  {}\n"
+    ];
+    expected = [
+      [ ]
+      [ ]
+    ];
+  };
+
+  testSecretsCommandWordsReachTheDecoder = {
+    expr =
+      lib.hasInfix ''exec sops -d "$1"''
+        (import ../lib/secrets.nix { inherit pkgs; } { command = "\tsops\t-d  {}\n"; }).package.text;
+    expected = true;
+  };
+
+  testSecretsCommandStringKeepsStorePaths = {
+    expr =
+      let
+        tool = pkgs.writeText "tool" "";
+        inherit ((import ../lib/secrets.nix { inherit pkgs; } { command = "${tool} {}"; }).package) text;
+      in
+      builtins.hasAttr (builtins.unsafeDiscardStringContext tool.drvPath) (builtins.getContext text);
+    expected = true;
+  };
+
+  testSecretsCommandListAccepted = {
+    expr = secretsErrors {
+      command = [
+        "dec"
+        "a b"
+        "{}"
+      ];
+    };
+    expected = [ ];
+  };
+
+  testSecretsUnknownMessage = {
+    expr = withCommand { extra = 1; };
+    expected = [ "lets: unknown secrets attribute(s): extra" ];
+  };
+
+  testSecretsInputsMessage = {
+    expr = withCommand { runtimeInputs = "sops"; };
+    expected = [ "lets: secrets.runtimeInputs must be a list or a function of pkgs" ];
+  };
+
+  testSecretsPatternOnceMessage = {
+    expr = withCommand { pattern = "{name}/{name}.env"; };
+    expected = [ "lets: secrets.pattern must be a string containing {name} once" ];
+  };
+
+  testSecretsFilesMessage = {
+    expr = withCommand { files = [ "" ]; };
+    expected = [ "lets: secrets.files must be a list of non-empty strings" ];
+  };
+
+  testSecretsOnErrorMessage = {
+    expr = withCommand { onError = "retry"; };
+    expected = [ ''lets: secrets.onError must be "fail", "warn" or "ignore"'' ];
+  };
+
+  testSecretsReachTasks = {
+    expr =
+      let
+        ts = loadTasks {
+          inherit pkgs;
+          src = inlineTask "greet";
+          secrets.command = "fakedec --flag {}";
+        };
+      in
+      lib.hasInfix "/bin/lets-decoder" ts.greet.app.text;
     expected = true;
   };
 }
