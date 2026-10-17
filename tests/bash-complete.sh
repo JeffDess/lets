@@ -58,8 +58,8 @@ assert_sorted() {
     fail=1
   fi
 }
-root_flags="--completions --env-file --help --no-env-files --show --version"
-root_flags="$root_flags -E -c -h -s -v"
+root_flags="--completions --env --env-file --help --no-env-files --show"
+root_flags="$root_flags --version -E -c -e -h -s -v"
 assert_sorted "lets -<TAB> lists env flags" "$root_flags" lets "-"
 assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
 assert "lets --no-env-files <TAB>" "demo lint version" lets --no-env-files ""
@@ -90,10 +90,15 @@ assert "lets demo <TAB>" "alice bob" lets demo ""
 assert "lets -E .prod.env demo <TAB>" "alice bob" lets -E .prod.env demo ""
 assert "lets --env-file=x demo <TAB>" "alice bob" lets --env-file = x demo ""
 assert "lets demo alice <TAB>" "" lets demo alice ""
+assert "lets --env=<TAB> offers nothing" "" lets --env =
+assert "lets --env=A=1 <TAB>" "demo lint version" lets --env = A = 1 ""
+assert "lets lint -e x nix <TAB>" "nix nix-bash" lets lint -e x nix ""
 mkdir -p envdir slashdir/sub && cd envdir && touch .prod.env .dev.env
 assert_sorted "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
 assert "lets -E ../slashdir/s<TAB>" "../slashdir/sub/" lets -E ../slashdir/s
 assert "lets -E .p<TAB>" ".prod.env" lets -E ".p"
+assert "lets -e <TAB> offers nothing" "" lets -e ""
+assert "lets -e A=1 <TAB>" "demo lint version" lets -e A=1 ""
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 
 # NOTE: Descriptions are emitted as a tab-separated second field.

@@ -229,6 +229,30 @@ _lets_env_anchor() {
   LETS_ENV_FILES="${_lets_anchored[*]}"
 }
 
+_lets_env_vars() {
+  local _lets_line _lets_key _lets_n=0
+  [ -n "${LETS_ENV_VARS:-}" ] || return 0
+  while IFS= read -r _lets_line; do
+    _lets_n=$((_lets_n + 1))
+    [ -n "$_lets_line" ] || continue
+    if [[ $_lets_line != *=* ]]; then
+      error "load_env: LETS_ENV_VARS:$_lets_n: missing '='"
+      return 1
+    fi
+    _lets_key="${_lets_line%%=*}"
+    if [[ ! $_lets_key =~ ^$_LETS_ENV_NAME$ ]]; then
+      error "load_env: LETS_ENV_VARS:$_lets_n: invalid variable name"
+      return 1
+    fi
+    if _lets_env_protected "$_lets_key"; then
+      error "load_env: $_lets_key is reserved (from -e or LETS_ENV_VARS)"
+      return 1
+    fi
+    export -- "$_lets_key=${_lets_line#*=}"
+    _LETS_ENV_PINNED["$_lets_key"]=1
+  done <<<"$LETS_ENV_VARS"
+}
+
 # shellcheck disable=SC2120
 _lets_env_autoload() {
   local - IFS=: _lets_entry _lets_env_from=' (from envFiles)'
@@ -259,6 +283,7 @@ skipped$_lets_env_from"
       ;;
     esac
   done
+  _lets_env_vars || return 1
 }
 
 load_env() {

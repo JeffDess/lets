@@ -225,6 +225,21 @@ in
     };
   };
 
+  testRootEnvOption = {
+    expr =
+      let
+        opts = m.options [ ];
+        o = lib.head (builtins.filter (o: o.long == "--env") opts);
+      in
+      {
+        inherit (o) short takesValue;
+      };
+    expected = {
+      short = "e";
+      takesValue = true;
+    };
+  };
+
   testRootEnvFileOption = {
     expr =
       let
