@@ -140,6 +140,25 @@ let
       ]
   ) optNames;
 
+  # NOTE: Split a combined short form like getopt: `-ab` -> `-a -b`, and the
+  # rest is the value when the first letter takes one (`-nFoo` -> `-n Foo`).
+  valShorts = map (n: normArgs.${n}.short) (builtins.filter (n: normArgs.${n} ? short) valOptNames);
+  bundleClause = [
+    "  -[!-]?*)"
+  ]
+  ++ (
+    if valShorts == [ ] then
+      [ "    set -- \"\${1:0:2}\" \"-\${1:2}\" \"\${@:2}\"" ]
+    else
+      [
+        "    case \"\${1:1:1}\" in"
+        "    ${lib.concatStringsSep " | " valShorts}) set -- \"\${1:0:2}\" \"\${1:2}\" \"\${@:2}\" ;;"
+        "    *) set -- \"\${1:0:2}\" \"-\${1:2}\" \"\${@:2}\" ;;"
+        "    esac"
+      ]
+  )
+  ++ [ "    ;;" ];
+
   positionalBindings = lib.concatMap (
     n:
     let
@@ -201,6 +220,9 @@ lib.concatStringsSep "\n" (
     "    shift"
     "    break"
     "    ;;"
+  ]
+  ++ bundleClause
+  ++ [
     "  -*)"
     "    error \"unknown option: $1\""
     "    exit 1"

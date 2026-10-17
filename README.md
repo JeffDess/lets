@@ -513,6 +513,18 @@ the example. `mkTask` validates the declaration at evaluation time and fails
 with a clear message on a duplicate argument name, a duplicate `short`, a name
 that is not a bash identifier, or a `short` that is not a single letter.
 
+Short forms can be combined in a single word, like most command-line tools. A
+letter that takes a value uses the rest of the word, or the next word if
+nothing is left:
+
+```bash
+$ lets greet -eu        # same as -e -u
+$ lets greet -nFoo      # same as -n Foo
+$ lets greet -eun Foo   # same as -e -u -n Foo
+```
+
+Full example: [`greet-short`](examples/greet-short/task.nix)
+
 #### Inline value
 
 An option's value can be passed as a separate word (`--name Foo`) or attached to
@@ -523,7 +535,8 @@ $ lets greet --name=Foo
 # Hello Foo
 ```
 
-Short forms always take their value as the next word (`-n Foo`).
+Short forms take their value as the next word (`-n Foo`) or attached to the
+letter (`-nFoo`).
 
 #### Default
 
