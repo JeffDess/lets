@@ -10,9 +10,13 @@ version:
     }:
     let
       cfg = config.lets;
-      baseTasks = import ./mkBaseTasks.nix { inherit pkgs; };
+      baseTasks = import ./mkBaseTasks.nix {
+        inherit pkgs;
+        inherit (cfg) envFiles;
+      };
       taskSet = import ./loadTasks.nix {
         inherit pkgs system;
+        inherit (cfg) envFiles;
         src = cfg.tasks;
         specialArgs = {
           inherit baseTasks;
@@ -39,6 +43,18 @@ version:
           type = lib.types.attrs;
           default = { };
           description = "Extra arguments merged into every task's scope (e.g. flake inputs, a second nixpkgs).";
+        };
+        envFiles = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = ''
+            Env files loaded at the start of every task, relative to the
+            task's working directory (the project root when run through
+            `lets`). A leading `~/`, `$VAR` and `''${VAR}` are expanded, and
+            any other `$` fails evaluation. Missing files and entries that
+            name an unset variable are skipped with a warning.
+            The caller's environment wins over them.
+          '';
         };
         devShell = lib.mkOption {
           type = lib.types.package;

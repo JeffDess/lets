@@ -4,10 +4,11 @@
   system ? pkgs.stdenv.hostPlatform.system,
   specialArgs ? { },
   extraTasks ? { },
+  envFiles ? [ ],
 }:
 let
   inherit (pkgs) lib;
-  mkTask = import ./mkTask.nix { inherit pkgs; };
+  mkTask = import ./mkTask.nix { inherit pkgs envFiles; };
   mkTasks = import ./mkTasks.nix;
 
   reserved = [
@@ -62,5 +63,8 @@ let
     "lets: task name(s) reserved by lets builtins: "
     + lib.concatStringsSep ", " reservedUsed
     + " (help/show/completions are flag apps; lets/default are packages)";
+  envFilesErrors = import ./envFiles.nix { inherit lib; } envFiles;
 in
-lib.throwIf (reservedUsed != [ ]) reservedMsg result
+lib.throwIf (envFilesErrors != [ ]) (builtins.head envFilesErrors) (
+  lib.throwIf (reservedUsed != [ ]) reservedMsg result
+)

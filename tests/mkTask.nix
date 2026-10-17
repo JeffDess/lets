@@ -231,4 +231,18 @@ in
     );
     expected = false;
   };
+
+  ### Env preamble ###
+
+  testEnvFilesCheckedByMkTask = {
+    expr =
+      let
+        mkTaskEnv = import ../lib/mkTask.nix {
+          inherit pkgs;
+          envFiles = [ "$1/.env" ];
+        };
+      in
+      (builtins.tryEval ((mkTaskEnv base).__build "test")).success;
+    expected = false;
+  };
 }

@@ -10,6 +10,7 @@
           ++ pkgs.lib.runTests (import ../tests/mkCompletions.nix { inherit pkgs; })
           ++ pkgs.lib.runTests (import ../tests/render.nix { inherit pkgs; })
           ++ pkgs.lib.runTests (import ../tests/fmt.nix { inherit pkgs; })
+          ++ pkgs.lib.runTests (import ../tests/env.nix { inherit pkgs; })
           ++ pkgs.lib.runTests (import ../tests/loadTasks.nix { inherit pkgs; })
         );
       }
@@ -58,18 +59,24 @@
           mapfile -t unsetv < <(jq -r '.unset[]?' <<<"$c")
           unsetargs=()
           for u in "''${unsetv[@]}"; do unsetargs+=(-u "$u"); done
-          if actual=$(env "''${unsetargs[@]}" "''${envv[@]}" "$bin" "''${argv[@]}" 2>/dev/null); then
+          errf="$TMPDIR/stderr"
+          if actual=$(env "''${unsetargs[@]}" "''${envv[@]}" \
+            "$bin" "''${argv[@]}" 2>"$errf"); then
             code=0
           else
             code=$?
           fi
+          hasErr=$(jq -r 'if .stderr == null then "no" else "yes" end' <<<"$c")
+          expErr=$(jq -r '.stderr // ""' <<<"$c")
           ok=1
           [ "$code" = "$expStatus" ] || ok=0
           if [ "$hasOut" = yes ] && [ "$actual" != "$expOut" ]; then ok=0; fi
+          if [ "$hasErr" = yes ] && [ -z "$expErr" ] && [ -s "$errf" ]; then ok=0; fi
+          [[ "$(<"$errf")" == *"$expErr"* ]] || ok=0
           if [ "$ok" = 1 ]; then
             report+="  ✅ $name"$'\n'
           else
-            report+="  ❌ $name (exit $code, got: $actual)"$'\n'
+            report+="  ❌ $name (exit $code, got: $actual, stderr: $(<"$errf"))"$'\n'
             fail=1
           fi
         done < <(jq -c '.[]' <<<"$casesJson")

@@ -23,7 +23,11 @@ let
   envVarOf = el: lib.removeSuffix "}" (lib.removePrefix "{" (lib.removePrefix "$" el));
   literalDefaults = f: builtins.filter (el: !isEnvRef el) (defaultElems f);
 in
-{ name, normArgs }:
+{
+  name,
+  normArgs,
+  helpScan ? false,
+}:
 let
   resolvedName = name;
   argNames = builtins.attrNames normArgs;
@@ -109,36 +113,46 @@ let
   ++ lib.optional (posNames != [ ]) "printf '%s\\n' ${esc "Arguments:"}"
   ++ lib.concatMap usagePosLine posNames;
 
-  caseClauses = lib.concatMap (
-    n:
-    let
-      f = normArgs.${n};
-      long = longOf n;
-      pat = (if f ? short then "-${f.short}|" else "") + long;
-    in
-    if isFlag f then
-      [
-        "  ${pat})"
-        "    # shellcheck disable=SC2034"
-        "    ${n}=true"
-        "    shift"
-        "    ;;"
-      ]
-    else
-      [
-        "  ${pat})"
-        "    if [ \"$#\" -lt 2 ]; then error \"$1 requires a value\"; exit 1; fi"
-        "    # shellcheck disable=SC2034"
-        "    ${n}=\"$2\""
-        "    shift 2"
-        "    ;;"
-        "  ${long}=*)"
-        "    # shellcheck disable=SC2034"
-        "    ${n}=\"\${1#*=}\""
-        "    shift"
-        "    ;;"
-      ]
-  ) optNames;
+  optClauses =
+    on:
+    lib.concatMap (
+      n:
+      let
+        f = normArgs.${n};
+        long = longOf n;
+        pat = (if f ? short then "-${f.short}|" else "") + long;
+      in
+      if isFlag f then
+        [ "  ${pat})" ] ++ on.flag n ++ [ "    ;;" ]
+      else
+        [ "  ${pat})" ]
+        ++ on.value n
+        ++ [
+          "    ;;"
+          "  ${long}=*)"
+        ]
+        ++ on.inline n
+        ++ [ "    ;;" ]
+    ) optNames;
+
+  caseClauses = optClauses {
+    flag = n: [
+      "    # shellcheck disable=SC2034"
+      "    ${n}=true"
+      "    shift"
+    ];
+    value = n: [
+      "    if [ \"$#\" -lt 2 ]; then error \"$1 requires a value\"; exit 1; fi"
+      "    # shellcheck disable=SC2034"
+      "    ${n}=\"$2\""
+      "    shift 2"
+    ];
+    inline = n: [
+      "    # shellcheck disable=SC2034"
+      "    ${n}=\"\${1#*=}\""
+      "    shift"
+    ];
+  };
 
   # NOTE: Split a combined short form like getopt: `-ab` -> `-a -b`, and the
   # rest is the value when the first letter takes one (`-nFoo` -> `-n Foo`).
@@ -158,6 +172,36 @@ let
       ]
   )
   ++ [ "    ;;" ];
+
+  scanClauses = optClauses {
+    flag = _: [ "    shift" ];
+    value = _: [
+      "    [ \"$#\" -ge 2 ] || return 1"
+      "    shift 2"
+    ];
+    inline = _: [ "    shift" ];
+  };
+
+  scanFunction = [
+    "_lets_wants_help() {"
+  ]
+  ++ map (l: "  " + l) (
+    [
+      "while [ \"$#\" -gt 0 ]; do"
+      "  case \"$1\" in"
+      "  ${helpPat}) return 0 ;;"
+    ]
+    ++ scanClauses
+    ++ [ "  --) return 1 ;;" ]
+    ++ bundleClause
+    ++ [
+      "  *) return 1 ;;"
+      "  esac"
+      "done"
+      "return 1"
+    ]
+  )
+  ++ [ "}" ];
 
   positionalBindings = lib.concatMap (
     n:
@@ -201,40 +245,43 @@ let
     )
   ) argNames;
 in
-lib.concatStringsSep "\n" (
-  initLines
-  ++ [
-    ""
-    "while [ \"$#\" -gt 0 ]; do"
-    "  case \"$1\" in"
-    "  ${helpPat})"
-  ]
-  ++ map (l: "    " + l) usageLines
-  ++ [
-    "    exit 0"
-    "    ;;"
-  ]
-  ++ caseClauses
-  ++ [
-    "  --)"
-    "    shift"
-    "    break"
-    "    ;;"
-  ]
-  ++ bundleClause
-  ++ [
-    "  -*)"
-    "    error \"unknown option: $1\""
-    "    exit 1"
-    "    ;;"
-    "  *)"
-    "    break"
-    "    ;;"
-    "  esac"
-    "done"
-  ]
-  ++ lib.optional (posNames != [ ]) ""
-  ++ positionalBindings
-  ++ aliasBindings
-  ++ requiredChecks
-)
+if helpScan then
+  lib.concatStringsSep "\n" scanFunction
+else
+  lib.concatStringsSep "\n" (
+    initLines
+    ++ [
+      ""
+      "while [ \"$#\" -gt 0 ]; do"
+      "  case \"$1\" in"
+      "  ${helpPat})"
+    ]
+    ++ map (l: "    " + l) usageLines
+    ++ [
+      "    exit 0"
+      "    ;;"
+    ]
+    ++ caseClauses
+    ++ [
+      "  --)"
+      "    shift"
+      "    break"
+      "    ;;"
+    ]
+    ++ bundleClause
+    ++ [
+      "  -*)"
+      "    error \"unknown option: $1\""
+      "    exit 1"
+      "    ;;"
+      "  *)"
+      "    break"
+      "    ;;"
+      "  esac"
+      "done"
+    ]
+    ++ lib.optional (posNames != [ ]) ""
+    ++ positionalBindings
+    ++ aliasBindings
+    ++ requiredChecks
+  )

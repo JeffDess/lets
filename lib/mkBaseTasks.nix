@@ -1,5 +1,8 @@
-{ pkgs }:
+{
+  pkgs,
+  envFiles ? [ ],
+}:
 import ./loadTasks.nix {
-  inherit pkgs;
+  inherit pkgs envFiles;
   src = ../tasks;
 }
