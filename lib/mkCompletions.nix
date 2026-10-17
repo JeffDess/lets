@@ -54,6 +54,10 @@ let
         type = "flag";
         description = "Skip the project's envFiles";
       };
+      env = {
+        short = "e";
+        description = "Set a variable for this run (repeatable)";
+      };
     };
   };
 

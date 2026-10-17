@@ -26,6 +26,56 @@
     stderr = "";
   }
   {
+    task = "layered";
+    env.LETS_ENV_VARS = "DB_HOST=cli";
+    stdout = "demo@cli";
+    stderr = "";
+  }
+  {
+    task = "layered";
+    env = {
+      DB_HOST = "shell";
+      LETS_ENV_VARS = "DB_HOST=cli";
+    };
+    stdout = "demo@cli";
+  }
+  {
+    task = "layered_override";
+    env.LETS_ENV_VARS = "DB_HOST=cli";
+    stdout = "demo@cli";
+  }
+  {
+    task = "layered";
+    env.LETS_ENV_VARS = ''DB_HOST= "q" '';
+    stdout = ''demo@ "q" '';
+  }
+  {
+    task = "layered";
+    env.LETS_ENV_VARS = "DB_HOST=";
+    stdout = "demo@";
+  }
+  {
+    task = "layered";
+    env.LETS_ENV_VARS = "PATH=/nowhere";
+    status = 1;
+    stdout = "";
+    stderr = "PATH is reserved (from -e or LETS_ENV_VARS)";
+  }
+  {
+    task = "layered";
+    env.LETS_ENV_VARS = "_LETS_ENV_SPACE=x";
+    status = 1;
+    stdout = "";
+    stderr = "_LETS_ENV_SPACE is reserved (from -e or LETS_ENV_VARS)";
+  }
+  {
+    task = "task_args";
+    env.LETS_ENV_VARS = "name=cli";
+    status = 1;
+    stdout = "";
+    stderr = "name is reserved (from -e or LETS_ENV_VARS)";
+  }
+  {
     task = "syntax";
     stdout = "yes|hello world|a # b|$(echo pwned)|ok|x|";
     stderr = "";

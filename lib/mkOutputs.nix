@@ -61,6 +61,9 @@ in
               echo "  lets -E, --env-file      Load an env file for this run"
               printf '      %s<file>%s               Repeatable, beats the shell and task files\n' \
                 "$GREEN" "$RESET"
+              echo "  lets -e, --env           Set a variable for this run"
+              printf '      %sKEY=VALUE%s            Repeatable, beats everything\n' \
+                "$GREEN" "$RESET"
               echo "  lets --no-env-files      Skip the project's envFiles"
               printf '\n%s%s%sAvailable Tasks%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               ${helpLines}

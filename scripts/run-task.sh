@@ -14,11 +14,11 @@ if [ "${1:-}" = "__complete" ]; then
   while [ "$__i" -lt "$argc" ]; do
     tok="${!__i}"
     case "$tok" in
-    -E | --env-file)
+    -E | --env-file | -e | --env)
       [ "$path" = lets ] || break
       __i=$((__i + 1))
       ;;
-    --env-file=* | --no-env-files) [ "$path" = lets ] || break ;;
+    --env-file=* | --env=* | --no-env-files) [ "$path" = lets ] || break ;;
     -*) break ;;
     *)
       cand="$path $tok"
@@ -36,7 +36,7 @@ if [ "${1:-}" = "__complete" ]; then
 
   inline=''
   case "$cur" in
-  --env-file=*)
+  --env-file=* | --env=*)
     inline="${cur%%=*}="
     prev="${cur%%=*}"
     cur="${cur#*=}"
@@ -45,6 +45,7 @@ if [ "${1:-}" = "__complete" ]; then
 
   if [ "$path" = lets ]; then
     case "$prev" in
+    -e | --env) exit 0 ;;
     -E | --env-file)
       shopt -s nullglob dotglob
       glob="$cur"
@@ -80,7 +81,8 @@ if [ "${1:-}" = "__complete" ]; then
 fi
 
 usage() {
-  echo "Usage: lets [-E <file>]... [--no-env-files] <task> [args...]" >&2
+  echo -n "Usage: lets [-E <file>|-e KEY=VALUE]... [--no-env-files]" >&2
+  echo " <task> [args...]" >&2
   exit 1
 }
 
@@ -135,6 +137,20 @@ env_files_from_pwd() {
   LETS_ENV_FILES="${resolved[*]}"
 }
 
+env_var() {
+  case "${1:-}" in
+  *$'\n'*)
+    error "--env value cannot span lines"
+    exit 1
+    ;;
+  esac
+  if [[ ! ${1:-} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+    error "--env needs KEY=VALUE with a valid name"
+    exit 1
+  fi
+  export LETS_ENV_VARS="${LETS_ENV_VARS:+$LETS_ENV_VARS$'\n'}$1"
+}
+
 env_flags=''
 
 while [ "$#" -gt 0 ]; do
@@ -145,6 +161,14 @@ while [ "$#" -gt 0 ]; do
     ;;
   --env-file=*)
     env_file "${1#--env-file=}"
+    shift
+    ;;
+  -e | --env)
+    env_var "${2:-}"
+    shift 2
+    ;;
+  --env=*)
+    env_var "${1#--env=}"
     shift
     ;;
   --no-env-files)

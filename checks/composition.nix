@@ -160,6 +160,10 @@
             description = "Print DB without loading anything";
             run = ''echo "''${DB-unset}"'';
           };
+          plain_two = mkTask {
+            description = "Print DB and OTHER";
+            run = ''echo "''${DB-unset} ''${OTHER-unset}"'';
+          };
           plain_env_files = mkTask {
             description = "Print LETS_ENV_FILES as a task sees it";
             run = ''echo "''${LETS_ENV_FILES-unset}"'';
@@ -301,6 +305,7 @@
         has_err reserved.err 'LETS_ENV_FILES is reserved, skipped'
         has_err reserved.err 'LETS_NO_ENV_FILES is reserved, skipped'
         has_err reserved.err 'LETS_ENV_SOURCES is reserved, skipped'
+        has_err reserved.err 'LETS_ENV_VARS is reserved, skipped'
         if env LETS_ENV_FILES=.nope.env ${apps.plain.program} \
           2>missing.err; then
           echo "❌ ${label}: a missing LETS_ENV_FILES entry should fail" >&2
@@ -324,6 +329,54 @@
         chmod 700 locked
         has_err locked.err 'locked/.env is not a readable file (from --env-file)'
         echo "✅ ${label}: a missing LETS_ENV_FILES entry fails the task"
+        expect "${label}: LETS_ENV_VARS wins over everything" cli \
+          env DB=shell LETS_ENV_FILES=.prod.env LETS_ENV_VARS=DB=cli \
+          ${apps.plain.program}
+        expect "${label}: LETS_ENV_VARS beats a child's load_env" cli \
+          env LETS_ENV_VARS=DB=cli ${apps.parent_loader.program}
+        expect "${label}: LETS_ENV_VARS wins over -E" cli \
+          env LETS_ENV_SOURCES="file:$PWD/.prod.env" LETS_ENV_VARS=DB=cli \
+          ${apps.plain.program}
+        expect "${label}: LETS_ENV_VARS keeps '=' in values" "a=b" \
+          env LETS_ENV_VARS='DB=a=b' ${apps.plain.program}
+        if env LETS_ENV_VARS='DB s3cr3t=x' ${apps.plain.program} 2>name.err; then
+          echo "❌ ${label}: an invalid LETS_ENV_VARS name should fail" >&2
+          exit 1
+        fi
+        has_err name.err 'LETS_ENV_VARS:1: invalid variable name'
+        if grep -q s3cr3t name.err; then
+          echo "❌ ${label}: an invalid LETS_ENV_VARS entry was printed" >&2
+          exit 1
+        fi
+        echo "✅ ${label}: an invalid LETS_ENV_VARS name fails without being printed"
+        expect "${label}: LETS_ENV_VARS takes one entry per line" "cli two" \
+          env LETS_ENV_VARS=$'DB=cli\nOTHER=two' ${apps.plain_two.program}
+        : >DB=glob
+        expect "${label}: LETS_ENV_VARS values are not globbed" "*" \
+          env LETS_ENV_VARS='DB=*' ${apps.plain.program}
+        rm DB=glob
+        if env LETS_ENV_VARS=NOEQUALS ${apps.plain.program} 2>vars.err; then
+          echo "❌ ${label}: a malformed LETS_ENV_VARS entry should fail" >&2
+          exit 1
+        fi
+        has_err vars.err "LETS_ENV_VARS:1: missing '='"
+        if env LETS_ENV_VARS=$'DB=1\n\nNOEQUALS' ${apps.plain.program} 2>vars.err; then
+          echo "❌ ${label}: a malformed LETS_ENV_VARS line should fail" >&2
+          exit 1
+        fi
+        has_err vars.err "LETS_ENV_VARS:3: missing '='"
+        expect "${label}: the last LETS_ENV_VARS entry wins" two \
+          env LETS_ENV_VARS=$'DB=one\nDB=two' ${apps.plain.program}
+        if env LETS_ENV_SOURCES=bogus ${apps.plain.program} 2>sources.err; then
+          echo "❌ ${label}: a bad LETS_ENV_SOURCES entry should fail" >&2
+          exit 1
+        fi
+        has_err sources.err "bad LETS_ENV_SOURCES entry 'bogus'"
+        echo "✅ ${label}: a malformed LETS_ENV_VARS entry fails the task"
+        expect "${label}: LETS_ENV_VARS survives a task's load_env" cli \
+          env LETS_ENV_VARS=DB=cli ${apps.loader.program}
+        expect "${label}: LETS_ENV_VARS survives load_env --override" cli \
+          env LETS_ENV_VARS=DB=cli ${apps.dev_override.program}
       '';
       layered = self.lib.mkFlake {
         inherit nixpkgs;
@@ -403,6 +456,7 @@
       echo "✅ envFiles load before arg parsing (vanilla + flake-parts)"
 
       printf 'DB=local\nLETS_ENV_FILES=x\nLETS_NO_ENV_FILES=1\nLETS_ENV_SOURCES=x\n' >>.env
+      printf 'LETS_ENV_VARS=DB=injected\n' >>.env
       printf 'DB=prod\n' >.prod.env
       printf 'BROKEN\n' >.bad.env
       printf 'DB=dev\n' >.dev.env
@@ -473,10 +527,10 @@
       fi
       cp .env .env.bak
       printf 'TOKEN=f1lesecret\n' >>.env
-      err="$(env CALLER_TOKEN=c4llersecret \
+      err="$(env CALLER_TOKEN=c4llersecret LETS_ENV_VARS=VAR_TOKEN=v4rsecret \
         ${pkgs.bash}/bin/bash -x ${vanilla.apps.${system}.quiet.program} 2>&1)"
       mv .env.bak .env
-      if [[ $err == *f1lesecret* || $err == *c4llersecret* ]]; then
+      if [[ $err == *f1lesecret* || $err == *c4llersecret* || $err == *v4rsecret* ]]; then
         echo "❌ envFiles traced a value under bash -x: $err" >&2
         exit 1
       fi

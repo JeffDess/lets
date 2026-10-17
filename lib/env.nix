@@ -26,6 +26,7 @@ let
     "PATH"
     "LETS_ENV_FILES"
     "LETS_NO_ENV_FILES"
+    "LETS_ENV_VARS"
     "LETS_ENV_SOURCES"
   ]
   ++ shellVars
