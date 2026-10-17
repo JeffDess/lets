@@ -5,6 +5,7 @@
   specialArgs ? { },
   version ? "0.0.0",
   overlays ? [ ],
+  envFiles ? [ ],
 }:
 let
   eachSystem =
@@ -20,9 +21,9 @@ let
     system:
     let
       pkgs = import nixpkgs { inherit system overlays; };
-      baseTasks = import ./mkBaseTasks.nix { inherit pkgs; };
+      baseTasks = import ./mkBaseTasks.nix { inherit pkgs envFiles; };
       taskSet = import ./loadTasks.nix {
-        inherit pkgs system;
+        inherit pkgs system envFiles;
         src = tasks;
         specialArgs = {
           inherit baseTasks;

@@ -31,6 +31,7 @@ let
         env = c.env or { };
         unset = c.unset or [ ];
         stdout = c.stdout or null;
+        stderr = c.stderr or null;
         status = c.status or 0;
       }
     ) cases;
