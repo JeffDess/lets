@@ -9,7 +9,7 @@
     description = "Run the unit test suite";
     runtimeInputs = [
       pkgs.convco
-      pkgs.git
+      pkgs.gitMinimal
       pkgs.jq
       tasks.lint_commits.app
     ];

@@ -62,7 +62,7 @@
     description = "Lint commit messages with convco";
     runtimeInputs = with pkgs; [
       convco
-      git
+      gitMinimal
       gnused
     ];
     args = {

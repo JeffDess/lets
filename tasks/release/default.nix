@@ -5,7 +5,7 @@
     runtimeInputs = with pkgs; [
       coreutils
       gnused
-      git
+      gitMinimal
       git-cliff
       gh
       glow
