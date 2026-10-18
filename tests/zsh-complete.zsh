@@ -71,6 +71,8 @@ mkdir -p envdir-zsh && cd envdir-zsh && touch .prod.env .dev.env
 assert "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
 touch .prod.enc.env .dev.enc.env
 assert "lets -S <TAB> lists secret names" "dev prod" lets -S ""
+assert "lets -e <TAB> offers nothing" "" lets -e ""
+assert "lets --no-env-files <TAB>" "demo lint version" lets --no-env-files ""
 assert "lets --secret=d<TAB>" "--secret=dev" lets --secret=d
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 

@@ -10,14 +10,16 @@ let
   validate = import ./validate.nix { inherit lib; };
   buildParser = import ./parser.nix { inherit lib; };
   fmtPreamble = import ./fmt.nix { inherit lib; };
+  projectEnvFiles = envFiles;
   mkEnvPreamble = import ./env.nix { inherit lib; };
-  envFilesErrors = import ./envFiles.nix { inherit lib; } envFiles;
+  envFilesErrors = import ./envFiles.nix { inherit lib; };
 in
 {
   name ? null,
   description,
   args ? { },
   runtimeInputs ? [ ],
+  envFiles ? [ ],
   secrets ? [ ],
   run,
 }:
@@ -27,25 +29,27 @@ in
     let
       resolvedName = if name != null then name else key;
       normArgs = args'.normalize args;
-      decrypts = decoder != null && ((secretsOk && secrets != [ ]) || decoder.files != [ ]);
+      argNames = builtins.attrNames normArgs;
+      secretsOk = builtins.isList secrets && builtins.all (s: builtins.isString s && s != "") secrets;
+      taskSecrets = if secretsOk then secrets else [ ];
+      decrypts = decoder != null && (taskSecrets != [ ] || decoder.files != [ ]);
       decoderInputs = lib.optional decrypts decoder.package;
       allInputs = runtimeInputs ++ decoderInputs;
       envPreamble = mkEnvPreamble {
+        envFiles = projectEnvFiles;
+        taskEnvFiles = envFiles;
+        secrets = taskSecrets;
         inherit
-          envFiles
           decoder
           decrypts
           argNames
+          key
           ;
       };
-      secretsOk = builtins.isList secrets && builtins.all (s: builtins.isString s && s != "") secrets;
-      secretLoads = lib.concatMapStringsSep "\n" (
-        n: "_lets_env_secret ${lib.escapeShellArg n} 1 explicit secrets"
-      ) (if secretsOk then secrets else [ ]);
       secretErrors =
         lib.optional (!secretsOk) "secrets must be a list of non-empty strings"
         ++ lib.optional (
-          secretsOk && secrets != [ ] && decoder == null
+          taskSecrets != [ ] && decoder == null
         ) "secrets needs a project-wide secrets.command";
       errors =
         validate {
@@ -53,27 +57,18 @@ in
           inherit normArgs;
         }
         ++ secretErrors
-        ++ map (lib.removePrefix "lets: ") envFilesErrors;
-      argParser = buildParser {
+        ++ map (lib.removePrefix "lets: ") (envFilesErrors projectEnvFiles ++ envFilesErrors envFiles);
+      parser = buildParser {
         name = resolvedName;
         inherit normArgs;
       };
-      helpScan = buildParser {
-        name = resolvedName;
-        inherit normArgs;
-        helpScan = true;
-      };
-      envLoad = lib.concatStringsSep "\n" (
-        [
-          helpScan
-          ""
-          "if ! _lets_wants_help \"$@\"; then"
-          envPreamble
-        ]
-        ++ lib.optional (secretsOk && secrets != [ ]) secretLoads
-        ++ [ "fi" ]
-      );
-      argNames = builtins.attrNames normArgs;
+      envLoad = lib.concatStringsSep "\n" [
+        parser.wantsHelp
+        ""
+        "if ! _lets_wants_help \"$@\"; then"
+        envPreamble
+        "fi"
+      ];
     in
     lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
       inherit
@@ -90,7 +85,7 @@ in
         text = lib.concatStringsSep "\n\n" [
           fmtPreamble
           envLoad
-          argParser
+          parser.parse
           run
         ];
       };

@@ -2,36 +2,60 @@
 let
   inherit (pkgs) lib;
   env = import ../lib/env.nix { inherit lib; };
+  plain = env {
+    envFiles = [
+      ".env"
+      "my file.env"
+    ];
+    taskEnvFiles = [ "t.env" ];
+    secrets = [ "dev" ];
+    argNames = [ "name" ];
+    decoder = null;
+  };
 in
 {
-  ### Auto-load line ###
+  ### Layers ###
 
-  testAutoloadAlwaysEmitted = {
-    expr = lib.hasSuffix "\n_lets_env_autoload" (env {
+  testModuleIncluded = {
+    expr = lib.hasInfix "dotenv_eval_string() {" plain;
+    expected = true;
+  };
+
+  testLayersInOrder = {
+    expr = lib.hasSuffix (lib.concatStringsSep "\n" [
+      "{"
+      "  _lets_env_no_files_check"
+      "  _lets_env_vars"
+      "  _lets_env_files .env 'my file.env'"
+      "  _lets_env_secret_files"
+      "  _lets_env_files t.env"
+      "  _lets_env_task_secrets dev"
+      "  _lets_env_cli"
+      "  _lets_env_export"
+      "}"
+    ]) plain;
+    expected = true;
+  };
+
+  testEmptyLayersHaveNoArguments = {
+    expr = lib.hasInfix "  _lets_env_files\n  _lets_env_secret_files\n" (env {
       envFiles = [ ];
       decoder = null;
     });
     expected = true;
   };
 
-  testAutoloadEscapesNames = {
-    expr = lib.hasInfix "\n_lets_env_autoload .env 'my file.env'" (env {
-      envFiles = [
-        ".env"
-        "my file.env"
-      ];
-      decoder = null;
-    });
+  testReservedPatterns = {
+    expr =
+      lib.hasInfix "_LETS_ENV_RESERVED=('_lets_*' '_LETS_*' '_dotenv_*' DOTENV_ERROR DOTENV_ERROR_KIND DOTENV_SKIPPED 'BASH_*' PATH " plain
+      && lib.hasInfix " name)\n" plain;
     expected = true;
   };
 
   ### Decoder ###
 
   testNoDecoderIsEmpty = {
-    expr = lib.hasInfix "_LETS_SECRET_BIN=''" (env {
-      envFiles = [ ];
-      decoder = null;
-    });
+    expr = lib.hasInfix "_LETS_SECRET_BIN=''" plain;
     expected = true;
   };
 

@@ -109,7 +109,20 @@ cd project/sub || exit 1
 assert "lets -S <TAB> from a subdirectory" "ci" lets -S ""
 cd ../.. || exit 1
 assert "lets -e <TAB> offers nothing" "" lets -e ""
-assert "lets -e A=1 <TAB>" "demo lint version" lets -e A=1 ""
+assert "lets -e A=1 <TAB>" "demo lint version" lets -e A = 1 ""
+assert "lets -E a -S b -e K=V --no-env-files <TAB>" "demo lint version" \
+  lets -E a -S b -e K = V --no-env-files ""
+assert "lets -e A=1 demo <TAB>" "alice bob" lets -e A = 1 demo ""
+assert "lets --env A=1 demo <TAB>" "alice bob" lets --env A = 1 demo ""
+assert "lets -e A=1 lint <TAB>" "nix nix-bash" lets -e A = 1 lint ""
+assert "lets -E a:b lint <TAB>" "nix nix-bash" lets -E a : b lint ""
+assert "lets -S a:b lint <TAB>" "nix nix-bash" lets -S a : b lint ""
+mkdir -p colon && touch 'colon/x:y.env'
+assert "lets -E colon/x:<TAB>" "y.env" lets -E colon/x :
+assert "lets -E colon/x:y<TAB>" "y.env" lets -E colon/x : y
+assert "lets --env-file=a -S b demo <TAB>" "alice bob" \
+  lets --env-file = a -S b demo ""
+assert "lets -E a -S b -e <TAB> offers nothing" "" lets -E a -S b -e ""
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 
 # NOTE: Descriptions are emitted as a tab-separated second field.

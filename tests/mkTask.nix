@@ -258,7 +258,32 @@ in
   };
 
   testEnvPreambleAlwaysIncluded = {
-    expr = lib.hasInfix "_lets_env_autoload" (build (base // { run = "true"; })).app.text;
+    expr = lib.hasInfix "_lets_env_export" (build (base // { run = "true"; })).app.text;
+    expected = true;
+  };
+
+  testTaskEnvFilesReachPreamble = {
+    expr =
+      lib.hasInfix "  _lets_env_files .deploy.env\n"
+        (build (base // { envFiles = [ ".deploy.env" ]; })).app.text;
+    expected = true;
+  };
+
+  testTaskEnvFilesChecked = {
+    expr = builds (base // { envFiles = [ ../README.md ]; });
+    expected = false;
+  };
+
+  testTaskSecretsReachPreamble = {
+    expr =
+      let
+        mkTaskSec = import ../lib/mkTask.nix {
+          inherit pkgs;
+          secrets = secretsFixture;
+        };
+      in
+      lib.hasInfix "  _lets_env_task_secrets dev\n"
+        ((mkTaskSec (base // { secrets = [ "dev" ]; })).__build "test").app.text;
     expected = true;
   };
 
@@ -289,7 +314,7 @@ in
         built = (mkTaskSec base).__build "test";
       in
       !builtins.elem decoderFixture.package built.runtimeInputs
-      && decoderContext built == { path = true; }
+      && decoderContext built == { }
       && lib.hasInfix (builtins.unsafeDiscardStringContext "${decoderFixture.package}/bin/lets-decoder") (
         builtins.unsafeDiscardStringContext built.app.text
       );

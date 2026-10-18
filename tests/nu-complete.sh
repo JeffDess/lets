@@ -40,6 +40,9 @@ mkdir -p envdir-nu && cd envdir-nu && touch .prod.env .dev.env
 check "lets -E <TAB> lists files" ".dev.env .prod.env" "['lets' '-E' '']"
 touch .prod.enc.env .dev.enc.env
 check "lets -S <TAB> lists secret names" "dev prod" "['lets' '-S' '']"
+check "lets -e <TAB> offers nothing" "" "['lets' '-e' '']"
+check "lets --no-env-files <TAB>" "demo lint version" \
+  "['lets' '--no-env-files' '']"
 check "lets --secret=d<TAB>" "--secret=dev" "['lets' '--secret=d']"
 check "lets --env-file=.d<TAB>" "--env-file=.dev.enc.env --env-file=.dev.env" \
   "['lets' '--env-file=.d']"

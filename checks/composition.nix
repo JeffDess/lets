@@ -154,14 +154,17 @@
             exit 3
             ;;
           esac
-          echo "DECODED=$1"
+          printf "DECODED='%s'\n" "$1"
+          printf "SEEN='%s'\n" "''${FROM_ENV-unset}"
           cat "$1"
         '';
       };
       posdec = pkgs.writeShellApplication {
         name = "posdec";
         text = ''
-          echo "ARGV=$*"
+          printf "ARGV='"
+          printf '[%s]' "$@"
+          printf "'\n"
           cat "$2"
         '';
       };
@@ -190,6 +193,7 @@
             "--first"
             "{}"
             "--last"
+            "a b"
           ];
           runtimeInputs = [ posdec ];
           pattern = ".{name}.enc.env";
@@ -246,6 +250,9 @@
               "empty"
               "rawjunk"
               "rawblank"
+              "rawnoisy"
+              "rawhalf"
+              "rawhalfeq"
             ];
           };
           tasks = envTasks;
@@ -270,14 +277,30 @@
         };
         tasks = envTasks;
       };
+      storedDrv =
+        builtins.unsafeDiscardOutputDependency
+          (derivation {
+            name = "stored";
+            inherit system;
+            builder = "/bin/sh";
+          }).drvPath;
       envTasks =
         { mkTask, tasks, ... }:
         let
-          printAfter =
-            setup:
+          withFiles =
+            envFiles:
             mkTask {
-              description = "Print DB after: ${setup}";
-              run = "${setup}; echo \"$DB\"";
+              description = "Print DB after loading ${toString envFiles}";
+              inherit envFiles;
+              run = ''echo "$DB"'';
+            };
+          runsWith =
+            envFiles: child:
+            mkTask {
+              description = "Run ${child} after loading ${toString envFiles}";
+              inherit envFiles;
+              runtimeInputs = [ tasks.${child}.app ];
+              run = child;
             };
           runs =
             child: setup:
@@ -340,6 +363,38 @@
             description = "Print DB and DECODED";
             run = ''echo "''${DB-unset} ''${DECODED-unset}"'';
           };
+          plain_seen = mkTask {
+            description = "Print SEEN from the decoder";
+            run = ''echo "''${SEEN-unset}"'';
+          };
+          api_task = mkTask {
+            description = "Load .api.env and print API_URL";
+            envFiles = [ ".api.env" ];
+            run = ''echo "$API_URL"'';
+          };
+          residue_dev = mkTask {
+            description = "Decrypt dev and report loader residue";
+            secrets = [ "dev" ];
+            run = ''
+              state="$(declare -p "''${!_lets@}" "''${!_LETS@}" "''${!_dotenv@}" "''${!DOTENV@}")"
+              if [[ $state == *DECODED=* ]]; then
+                echo residue
+              else
+                echo clean
+              fi
+            '';
+          };
+          prod_dev = mkTask {
+            description = "Load .prod.env, decrypt dev and print DB";
+            envFiles = [ ".prod.env" ];
+            secrets = [ "dev" ];
+            run = ''echo "$DB"'';
+          };
+          seen_dev = mkTask {
+            description = "Decrypt dev and print SEEN";
+            secrets = [ "dev" ];
+            run = ''echo "''${SEEN-unset}"'';
+          };
           plain_env_files = mkTask {
             description = "Print LETS_ENV_FILES as a task sees it";
             run = ''echo "''${LETS_ENV_FILES-unset}"'';
@@ -350,15 +405,14 @@
               if [[ $IFS == $' \t\n' && $- != *f* ]]; then echo clean; else echo changed; fi
             '';
           };
-          traced = printAfter "set -x; load_env .traced.env; set +x";
           quiet = mkTask {
             description = "Load envFiles and print nothing";
             run = "true";
           };
-          loader = printAfter "load_env .prod.env";
-          dev_loader = printAfter "load_env .dev.env";
+          loader = withFiles [ ".prod.env" ];
+          dev_loader = withFiles [ ".dev.env" ];
           parent_loader = runs "loader" "";
-          parent_profile = runs "plain" "load_env .prod.env;";
+          parent_profile = runsWith [ ".prod.env" ] "plain";
           parent_assign = runs "plain" "DB=x";
           parent_export = runs "plain" "export DB=x;";
           parent_cd = runs "plain" "mkdir -p sub && cd sub &&";
@@ -368,9 +422,13 @@
             secrets = [ "dev" ];
             run = "true";
           };
-          parent_pinned = runs "dev_loader" "load_env .prod.env;";
-          parent_override = runs "plain" "load_env --override .prod.env;";
-          dev_override = printAfter "load_env --override .dev.env";
+          parent_pinned = runsWith [ ".prod.env" ] "dev_loader";
+          prod_or_unset = mkTask {
+            description = "Load .prod.env and print DB or unset";
+            envFiles = [ ".prod.env" ];
+            run = ''echo "''${DB-unset}"'';
+          };
+          parent_prod_or_unset = runs "prod_or_unset" "";
         };
       vanilla = self.lib.mkFlake {
         inherit nixpkgs;
@@ -402,16 +460,19 @@
         )).apps.${system};
       composed = label: apps: ''
         expect "${label}: loader run directly" prod ${apps.loader.program}
-        expect "${label}: shell value equal to envFiles is a file value" prod \
+        expect "${label}: shell value equal to envFiles wins" local \
           env DB=local ${apps.loader.program}
-        expect "${label}: parent runs loader" prod ${apps.parent_loader.program}
+        expect "${label}: parent values win over child envFiles" local \
+          ${apps.parent_loader.program}
         expect "${label}: caller env wins in child" shell \
           env DB=shell ${apps.parent_loader.program}
         expect "${label}: parent profile reaches child" prod ${apps.parent_profile.program}
         expect "${label}: parent assignment reaches child" x ${apps.parent_assign.program}
         expect "${label}: parent export reaches child" x ${apps.parent_export.program}
-        expect "${label}: parent override reaches child" prod \
-          env DB=shell ${apps.parent_override.program}
+        expect "${label}: every -e name stays pinned in a child" local \
+          env LETS_ENV_VARS=$'DB=local\nOTHER=x' ${apps.parent_loader.program}
+        expect "${label}: a task's secrets beat its envFiles" dev-secret \
+          ${apps.prod_dev.program}
         expect "${label}: parent profile wins over child profile" prod \
           ${apps.parent_pinned.program}
         expect "${label}: LETS_ENV_FILES loads after envFiles" prod \
@@ -451,10 +512,11 @@
         echo "✅ ${label}: an unset or empty variable in -E fails"
         expect "${label}: LETS_ENV_FILES reaches the child" prod \
           env LETS_ENV_FILES=.prod.env ${apps.parent_loader.program}
-        expect "${label}: LETS_ENV_FILES wins over a parent export" prod \
+        expect "${label}: a parent export reaches the child over LETS_ENV_FILES" x \
           env LETS_ENV_FILES=.prod.env ${apps.parent_export.program}
-        expect "${label}: LETS_ENV_FILES resolves from the first task's directory" \
-          prod env LETS_ENV_FILES=.prod.env ${apps.parent_cd.program}
+        expect_warn "${label}: LETS_ENV_FILES resolves from the first task's directory" \
+          prod '.env not found, skipped (from envFiles)' \
+          env LETS_ENV_FILES=.prod.env ${apps.parent_cd.program}
         if env LETS_ENV_FILES='$(: >pwned).env' ${apps.plain.program} \
           2>subst.err; then
           echo "❌ ${label}: command substitution in LETS_ENV_FILES should fail" >&2
@@ -470,23 +532,26 @@
           echo "❌ ${label}: a malformed LETS_ENV_FILES entry should fail" >&2
           exit 1
         fi
-        has_err bad.err ".bad.env:1: missing '=' (from LETS_ENV_FILES)"
+        has_err bad.err ".bad.env:1: expected '=' after the name (from LETS_ENV_FILES)"
         if env LETS_ENV_SOURCES="file:$PWD/.bad.env" ${apps.plain.program} \
           2>bad.err; then
           echo "❌ ${label}: a malformed -E file should fail" >&2
           exit 1
         fi
-        has_err bad.err ".bad.env:1: missing '=' (from --env-file)"
+        has_err bad.err ".bad.env:1: expected '=' after the name (from --env-file)"
         echo "✅ ${label}: errors name the CLI source"
-        expect "${label}: a file cannot set LETS_ENV_FILES" "$PWD/.prod.env" \
+        expect "${label}: the first task clears LETS_ENV_FILES" unset \
           env LETS_ENV_FILES=.prod.env ${apps.plain_env_files.program}
-        env LETS_ENV_FILES=.prod.env ${apps.plain_env_files.program} \
+        env -C hostile LETS_ENV_FILES=.prod.env ${apps.plain_env_files.program} \
           2>reserved.err >/dev/null
         has_err reserved.err 'LETS_ENV_FILES is reserved, skipped'
         has_err reserved.err 'LETS_NO_ENV_FILES is reserved, skipped'
         has_err reserved.err 'LETS_ENV_SOURCES is reserved, skipped'
         has_err reserved.err 'LETS_ENV_VARS is reserved, skipped'
         has_err reserved.err 'LETS_SECRETS is reserved, skipped'
+        expect_warn "${label}: a file cannot steer the loading" prod \
+          'LETS_NO_ENV_FILES is reserved, skipped' \
+          env -C hostile ${apps.loader.program}
         if env LETS_ENV_FILES=.nope.env ${apps.plain.program} \
           2>missing.err; then
           echo "❌ ${label}: a missing LETS_ENV_FILES entry should fail" >&2
@@ -509,11 +574,11 @@
         fi
         chmod 700 locked
         has_err locked.err 'locked/.env is not a readable file (from --env-file)'
-        echo "✅ ${label}: a missing LETS_ENV_FILES entry fails the task"
+        echo "✅ ${label}: missing or unreadable LETS_ENV_FILES and -E files fail the task"
         expect "${label}: LETS_ENV_VARS wins over everything" cli \
           env DB=shell LETS_ENV_FILES=.prod.env LETS_ENV_VARS=DB=cli \
           ${apps.plain.program}
-        expect "${label}: LETS_ENV_VARS beats a child's load_env" cli \
+        expect "${label}: LETS_ENV_VARS beats a child's envFiles" cli \
           env LETS_ENV_VARS=DB=cli ${apps.parent_loader.program}
         expect "${label}: LETS_ENV_VARS wins over -E" cli \
           env LETS_ENV_SOURCES="file:$PWD/.prod.env" LETS_ENV_VARS=DB=cli \
@@ -580,13 +645,15 @@
           env LETS_SECRETS=dev LETS_ENV_VARS=DB=cli ${apps.plain.program}
         expect "${label}: empty LETS_SECRETS entries are skipped" dev-secret \
           env LETS_SECRETS=:dev:: ${apps.plain.program}
-        expect "${label}: LETS_SECRETS decrypts from the first task's directory" \
-          dev-secret env LETS_SECRETS=dev ${apps.parent_cd.program}
+        expect_warn "${label}: LETS_SECRETS decrypts from the first task's directory" \
+          dev-secret '.env not found, skipped (from envFiles)' \
+          env LETS_SECRETS=dev ${apps.parent_cd.program}
         expect "${label}: LETS_ENV_FILES wins over a task's secrets" prod \
           env LETS_ENV_FILES=.prod.env ${apps.needs_dev.program}
         expect "${label}: LETS_SECRETS wins over a task's secrets" prod-secret \
           env LETS_SECRETS=prod ${apps.needs_dev.program}
-        expect "${label}: a file cannot redirect the decoder" dev-secret \
+        expect_warn "${label}: a file cannot redirect the decoder" dev-secret \
+          '_LETS_SECRET_BIN is reserved, skipped' \
           env LETS_ENV_FILES=.hijack.env LETS_SECRETS=dev ${apps.plain.program}
         env LETS_ENV_FILES=.hijack.env LETS_SECRETS=dev ${apps.plain.program} \
           2>hijack.err >/dev/null
@@ -607,11 +674,11 @@
         echo "✅ ${label}: a failing decoder fails the task"
         expect "${label}: a task's secrets load without a flag" dev-secret \
           ${apps.needs_dev.program}
-        expect "${label}: a task's secrets win over the shell" dev-secret \
+        expect "${label}: a task's secrets lose to the shell" shell \
           env DB=shell ${apps.needs_dev.program}
-        expect "${label}: LETS_ENV_VARS survives a task's load_env" cli \
+        expect "${label}: LETS_ENV_VARS survives a task's envFiles" cli \
           env LETS_ENV_VARS=DB=cli ${apps.loader.program}
-        expect "${label}: LETS_ENV_FILES survives a task's load_env" prod \
+        expect "${label}: LETS_ENV_FILES survives a task's envFiles" prod \
           env LETS_ENV_FILES=.prod.env ${apps.dev_loader.program}
         expect "${label}: LETS_NO_ENV_FILES keeps LETS_SECRETS" dev-secret \
           env LETS_NO_ENV_FILES=1 LETS_SECRETS=dev ${apps.plain.program}
@@ -619,12 +686,6 @@
           env LETS_NO_ENV_FILES=1 ${apps.needs_dev.program}
         expect "${label}: LETS_ENV_VARS survives a task's secrets" cli \
           env LETS_ENV_VARS=DB=cli ${apps.needs_dev.program}
-        expect "${label}: load_env --override cannot beat the CLI" cli \
-          env LETS_ENV_VARS=DB=cli ${apps.dev_override.program}
-        expect "${label}: load_env --override cannot beat -E" prod \
-          env LETS_ENV_SOURCES="file:$PWD/.prod.env" ${apps.dev_override.program}
-        expect "${label}: load_env --override cannot beat -S" prod-secret \
-          env LETS_ENV_SOURCES=secret:prod ${apps.dev_override.program}
         if ${apps.parent_cd_dev.program} 2>cd.err >/dev/null; then
           echo "❌ ${label}: a task's secrets should decrypt from its own directory" >&2
           exit 1
@@ -660,6 +721,21 @@
         envFiles = [ "conf/.env" ];
         tasks = envTasks;
       };
+      chained = self.lib.mkFlake {
+        inherit nixpkgs;
+        systems = [ system ];
+        envFiles = [
+          ".conf.env"
+          "$CONF_DIR/x.env"
+        ];
+        tasks = envTasks;
+      };
+      confOnly = self.lib.mkFlake {
+        inherit nixpkgs;
+        systems = [ system ];
+        envFiles = [ ".conf.env" ];
+        tasks = envTasks;
+      };
       expandTasks =
         { mkTask, ... }:
         {
@@ -686,19 +762,32 @@
       };
       expand = expanding.apps.${system}.expand.program;
     in
-    pkgs.runCommand "check-env-files" { } ''
-      expect() {
-        local label="$1" want="$2" got
-        shift 2
-        got="$("$@")" || {
-          echo "❌ $label: exited $?" >&2
+    pkgs.runCommand "check-env-files" { inherit storedDrv; } ''
+      expect_warn() {
+        local label="$1" want="$2" warning="$3" got
+        shift 3
+        got="$("$@" 2>"$NIX_BUILD_TOP/expect.err")" || {
+          echo "❌ $label: exited $?: $(<"$NIX_BUILD_TOP/expect.err")" >&2
           exit 1
         }
         if [ "$got" != "$want" ]; then
           echo "❌ $label: expected $want, got $got" >&2
           exit 1
         fi
+        if [ -z "$warning" ] && [ -s "$NIX_BUILD_TOP/expect.err" ]; then
+          echo "❌ $label: expected no stderr, got: $(<"$NIX_BUILD_TOP/expect.err")" >&2
+          exit 1
+        fi
+        if [ -n "$warning" ] && ! grep -qF -- "$warning" "$NIX_BUILD_TOP/expect.err"; then
+          echo "❌ $label: expected '$warning' on stderr, got: $(<"$NIX_BUILD_TOP/expect.err")" >&2
+          exit 1
+        fi
         echo "✅ $label"
+      }
+      expect() {
+        local label="$1" want="$2"
+        shift 2
+        expect_warn "$label" "$want" "" "$@"
       }
       has_err() {
         grep -qF -- "$2" "$1" || {
@@ -711,21 +800,23 @@
       for prog in \
         ${vanilla.apps.${system}.greet.program} \
         ${fp.apps.${system}.greet.program}; do
-        expect "envFiles load before arg parsing" "Alice file" "$prog"
-        expect "arguments keep their parsed value" "Bob file" "$prog" --name Bob
-        expect "caller env wins over envFiles" "Alice shell" \
-          env GREET_SOURCE=shell "$prog"
-        "$prog" 2>&1 >/dev/null | grep -qF "name is reserved, skipped" || {
-          echo "❌ an envFiles key named like an argument should be skipped" >&2
-          exit 1
-        }
+        expect_warn "envFiles load before arg parsing" "Alice file" \
+          "name is reserved, skipped" "$prog"
+        expect_warn "arguments keep their parsed value" "Bob file" \
+          "name is reserved, skipped" "$prog" --name Bob
+        expect_warn "caller env wins over envFiles" "Alice shell" \
+          "name is reserved, skipped" env GREET_SOURCE=shell "$prog"
       done
       echo "✅ envFiles load before arg parsing (vanilla + flake-parts)"
 
-      printf 'DB=local\nLETS_ENV_FILES=x\nLETS_NO_ENV_FILES=1\nLETS_ENV_SOURCES=x\n' >>.env
-      printf 'LETS_ENV_VARS=DB=injected\n' >>.env
-      printf 'LETS_SECRETS=bad\n' >>.env
+      printf 'GREET_NAME=Alice\nGREET_SOURCE=file\nDB=local\n' >.env
+      mkdir hostile
+      cp .env hostile/.env
+      printf 'LETS_ENV_FILES=x\nLETS_NO_ENV_FILES=1\nLETS_ENV_SOURCES=x\n' >>hostile/.env
+      printf 'LETS_ENV_VARS=DB=injected\n' >>hostile/.env
+      printf 'LETS_SECRETS=bad\n' >>hostile/.env
       printf 'DB=prod\n' >.prod.env
+      cp .prod.env hostile/.prod.env
       printf 'BROKEN\n' >.bad.env
       printf 'DB=dev\n' >.dev.env
       printf 'DB=dev-secret\n' >.dev.enc.env
@@ -736,34 +827,11 @@
       ${composed "flake-parts" fp.apps.${system}}
       echo "✅ env precedence holds across composed tasks (vanilla + flake-parts)"
 
-      mkdir 'dollar$dir'
-      cd 'dollar$dir'
-      if env LETS_ENV_FILES=.prod.env ${vanilla.apps.${system}.plain.program} \
-        2>dollar.err; then
-        echo "❌ a relative LETS_ENV_FILES entry under a \$ directory should fail" >&2
-        exit 1
-      fi
-      has_err dollar.err "cannot resolve .prod.env: $PWD contains '\$'"
-      cd ..
-      echo "✅ a relative LETS_ENV_FILES entry under a \$ directory fails"
-
-      mkdir 'colon:dir'
-      cd 'colon:dir'
-      if env LETS_ENV_FILES=.prod.env ${vanilla.apps.${system}.plain.program} \
-        2>colon.err; then
-        echo "❌ a relative LETS_ENV_FILES entry under a : directory should fail" >&2
-        exit 1
-      fi
-      has_err colon.err "cannot resolve .prod.env: $PWD contains '\$' or ':'"
-      cd ..
-      echo "✅ a relative LETS_ENV_FILES entry under a : directory fails"
-
       mkdir -p e2e/bin e2e/apps e2e/sub
       touch e2e/flake.nix
       printf 'DB=local\n' >e2e/.env
       printf 'DB=cli\n' >e2e/sub/.cli.env
       ln -s ${vanilla.apps.${system}.plain.program} e2e/apps/plain
-      ln -s ${vanilla.apps.${system}.parent_export.program} e2e/apps/parent_export
       ln -s ${vanilla.apps.${system}.parent_cd.program} e2e/apps/parent_cd
       printf 'DB=e2e-secret\n' >e2e/.dev.enc.env
       printf '#!%s\nexec "$LETS_TEST_APPS/''${5#.#}" "''${@:7}"\n' ${pkgs.runtimeShell} \
@@ -774,16 +842,16 @@
       lets="${vanilla.packages.${system}.lets}/bin/lets"
       PATH="$PWD/../bin:$PATH" expect "lets -E reaches the task" cli \
         "$lets" -E .cli.env plain
-      PATH="$PWD/../bin:$PATH" expect "lets -E reaches a child task" cli \
-        "$lets" -E .cli.env parent_export
+      PATH="$PWD/../bin:$PATH" expect_warn "lets -E reaches a child task" cli \
+        '.env not found, skipped (from envFiles)' "$lets" -E .cli.env parent_cd
       PATH="$PWD/../bin:$PATH" expect "LETS_ENV_FILES resolves from the caller" cli \
         env LETS_ENV_FILES=.cli.env "$lets" plain
       PATH="$PWD/../bin:$PATH" expect "lets runs tasks from the project root" local \
         "$lets" plain
       PATH="$PWD/../bin:$PATH" expect "lets -S decrypts from the project root" \
         e2e-secret "$lets" -S dev plain
-      PATH="$PWD/../bin:$PATH" expect "lets -S survives a child's cd" \
-        e2e-secret "$lets" -S dev parent_cd
+      PATH="$PWD/../bin:$PATH" expect_warn "lets -S survives a child's cd" \
+        e2e-secret '.env not found, skipped (from envFiles)' "$lets" -S dev parent_cd
       unset LETS_TEST_APPS
       cd ../..
       echo "✅ the lets wrapper hands CLI files and secrets to tasks"
@@ -796,13 +864,6 @@
         env DB= ${vanilla.apps.${system}.plain.program}
       echo "✅ an empty caller value wins over envFiles"
 
-      printf 'DB=s3cr3t\n' >.traced.env
-      expect "load_env under set -x" s3cr3t ${vanilla.apps.${system}.traced.program}
-      err="$(${vanilla.apps.${system}.traced.program} 2>&1 >/dev/null)"
-      if [[ $err == *s3cr3t* ]]; then
-        echo "❌ load_env traced a value under set -x: $err" >&2
-        exit 1
-      fi
       cp .env .env.bak
       printf 'TOKEN=f1lesecret\n' >>.env
       err="$(env CALLER_TOKEN=c4llersecret LETS_ENV_VARS=VAR_TOKEN=v4rsecret \
@@ -810,6 +871,10 @@
       mv .env.bak .env
       if [[ $err == *f1lesecret* || $err == *c4llersecret* || $err == *v4rsecret* ]]; then
         echo "❌ envFiles traced a value under bash -x: $err" >&2
+        exit 1
+      fi
+      if [[ $err != *_lets_env_export* ]]; then
+        echo "❌ bash -x did not trace the env loading: $err" >&2
         exit 1
       fi
       echo "✅ loading env files never traces values"
@@ -820,31 +885,124 @@
       printf 'DB=other\n' >.local.env
       printf 'DB=prod\n' >.prod.env
       expect "later envFiles entry wins" other ${layeredApps.plain.program}
-      expect "shell value equal to the last envFiles value is a file value" prod \
+      expect "a shell value equal to the last envFiles value wins" other \
         env DB=other ${layeredApps.loader.program}
-      expect "shell value equal to an overridden envFiles value wins" local \
+      expect "a shell value equal to an earlier envFiles value wins" local \
         env DB=local ${layeredApps.loader.program}
       cd ..
       echo "✅ envFiles entries load in order"
 
+      mkdir selfdefault
+      cd selfdefault
+      printf 'DB=''${DB:-local}\n' >.env
+      printf 'DB=later\n' >.local.env
+      expect "a custom shell value beats a self-default file" shell \
+        env DB=shell ${layeredApps.plain.program}
+      expect "a shell value equal to a self-default wins" local \
+        env DB=local ${layeredApps.plain.program}
+      printf 'DB=''${DB:-local}\n' >.local.env
+      printf 'DB=prod\n' >.prod.env
+      expect "a custom shell value beats two self-default files" shell \
+        env DB=shell ${layeredApps.loader.program}
+      expect "a shell value equal to two self-defaults wins" local \
+        env DB=local ${layeredApps.loader.program}
+      cd ..
+      echo "✅ the shell beats self-default files"
+
+      mkdir derived
+      cd derived
+      printf '%s\n' 'DB_HOST=''${DB_HOST:-localhost}' \
+        'API_URL="https://$DB_HOST/api"' >.env
+      printf 'API_URL=https://task/api\n' >.api.env
+      expect "a derived value is a file value when run directly" \
+        https://task/api \
+        env DB_HOST=custom ${vanilla.apps.${system}.api_task.program}
+      expect "a derived value in the shell wins" \
+        https://custom/api \
+        env DB_HOST=custom API_URL=https://custom/api \
+        ${vanilla.apps.${system}.api_task.program}
+      cd ..
+      echo "✅ derived values follow the shell"
+
+      mkdir cli-required
+      cd cli-required
+      printf '%s\n' 'DB=''${DB:?set DB first}' >.env
+      printf '%s\n' 'OTHER=''${OTHER:?-E needs OTHER}' >.req.env
+      expect "-e fills a required value in envFiles" abc \
+        env LETS_ENV_VARS=DB=abc ${vanilla.apps.${system}.plain.program}
+      expect "-e fills a required value in -E files" "abc two" \
+        env LETS_ENV_SOURCES="file:$PWD/.req.env" \
+        LETS_ENV_VARS=$'DB=abc\nOTHER=two' ${vanilla.apps.${system}.plain_two.program}
+      cd ..
+      mkdir cli-derived
+      cd cli-derived
+      printf '%s\n' 'DB_HOST=prod' >.env
+      printf '%s\n' 'API_URL="https://$DB_HOST/api"' >.api.env
+      printf '%s\n' 'DB_HOST=cli-file' 'API_URL="https://$DB_HOST/cli"' >.cli.env
+      expect "-e feeds values derived in a task's envFiles" https://db.local/api \
+        env LETS_ENV_VARS=DB_HOST=db.local ${vanilla.apps.${system}.api_task.program}
+      expect "-e feeds values derived in -E files" https://db.local/cli \
+        env LETS_ENV_SOURCES="file:$PWD/.cli.env" LETS_ENV_VARS=DB_HOST=db.local \
+        ${vanilla.apps.${system}.api_task.program}
+      cd ..
+      echo "✅ files see -e values while they load"
+
+      mkdir guarded
+      cd guarded
+      touch .env
+      printf 'DB=prod\n' >.prod.env
+      expect "LETS_NO_ENV_FILES reaches a child" unset \
+        env LETS_NO_ENV_FILES=1 ${vanilla.apps.${system}.parent_prod_or_unset.program}
+      printf '%s\n' UID=0 IFS=x RED=x CDPATH=/tmp DB=ok >.rt.env
+      expect_warn "runtime and shell names are skipped" ok 'IFS is reserved, skipped' \
+        env LETS_ENV_FILES=.rt.env ${vanilla.apps.${system}.plain.program}
+      expect_warn "a skipped IFS leaves the shell as it was" clean \
+        'IFS is reserved, skipped' \
+        env LETS_ENV_FILES=.rt.env ${vanilla.apps.${system}.shell_state.program}
+      env LETS_ENV_FILES=.rt.env ${vanilla.apps.${system}.plain.program} \
+        2>rt.err >/dev/null
+      for name in UID IFS RED CDPATH; do
+        has_err rt.err "$name is reserved, skipped"
+      done
+      printf 'DB=glob\n' >g1.env
+      printf 'DB=globbed\n' >.dev.enc.env
+      touch dev
+      if env LETS_ENV_FILES='g*.env' ${vanilla.apps.${system}.plain.program} \
+        2>glob.err; then
+        echo "❌ a LETS_ENV_FILES glob should not match a file" >&2
+        exit 1
+      fi
+      has_err glob.err 'g*.env not found (from LETS_ENV_FILES)'
+      if env LETS_SECRETS='de?' ${vanilla.apps.${system}.plain.program} \
+        2>glob.err; then
+        echo "❌ a LETS_SECRETS glob should not match a file" >&2
+        exit 1
+      fi
+      has_err glob.err '.de?.enc.env failed (exit 1) (from LETS_SECRETS)'
+      expect "LETS_ENV_VARS values are not expanded" '$(echo x) $HOME' \
+        env LETS_ENV_VARS='DB=$(echo x) $HOME' ${vanilla.apps.${system}.plain.program}
+      cd ..
+      echo "✅ CLI entries are not globbed and -e values stay literal"
+
       printf 'not dotenv\n' >.rawjunk.enc.env
       printf 'TOKEN=\n' >.rawblank.enc.env
-      expect "onError warn: secrets.files failures let the task go on" local \
+      printf 'PATH=/x\nNOISY_EMPTY=\nNOISY=1\n' >.rawnoisy.enc.env
+      printf 'DB=leak\nBROKEN\n' >.rawhalf.enc.env
+      printf 'DB=leak\nX==\n' >.rawhalfeq.enc.env
+      expect_warn "onError warn: secrets.files failures let the task go on" local \
+        'bad.enc.env failed (exit 3), skipped (from secrets.files)' \
         ${warnApps.plain.program}
       ${warnApps.plain.program} 2>warn.err >/dev/null
       has_err warn.err 'bad.enc.env failed (exit 3), skipped (from secrets.files)'
       has_err warn.err 'empty.enc.env printed nothing, skipped (from secrets.files)'
       has_err warn.err \
-        ".rawjunk.enc.env:1: missing '=', decoder output must be KEY=VALUE lines, skipped (from secrets.files)"
+        ".rawjunk.enc.env:1: expected '=' right after the name, decoder output must be KEY=VALUE lines, skipped (from secrets.files)"
       has_err warn.err \
         '.rawblank.enc.env printed no KEY=VALUE line with a value, skipped (from secrets.files)'
-      expect "onError ignore: secrets.files failures let the task go on" local \
+      has_err warn.err '.rawhalf.enc.env:2: expected '"'"'='"'"' after the name'
+      has_err warn.err ".rawhalfeq.enc.env: a value is only '='"
+      expect "onError ignore: secrets.files failures run silently" local \
         ${ignoreApps.plain.program}
-      ${ignoreApps.plain.program} 2>ignore.err >/dev/null
-      if grep -q secrets ignore.err; then
-        echo "❌ onError ignore should not warn: $(<ignore.err)" >&2
-        exit 1
-      fi
       echo "✅ onError warn and ignore keep the task running"
 
       for prog in ${warnApps.plain.program} ${ignoreApps.plain.program}; do
@@ -890,7 +1048,7 @@
         echo "❌ unparsable secrets.files output should fail by default" >&2
         exit 1
       fi
-      has_err strict.err ".rawjunk.enc.env:1: missing '='"
+      has_err strict.err ".rawjunk.enc.env:1: expected '=' right after the name"
       if ${(strict [ "rawblank" ]).plain.program} 2>strict.err; then
         echo "❌ secrets.files output without a value should fail by default" >&2
         exit 1
@@ -917,40 +1075,188 @@
         exit 1
       fi
       has_err nodecoder.err 'no decoder configured (secrets.command) (from --secret)'
-      mkdir realise
-      printf '#!%s\nprintf "%%s " "$@" >realise/args\nexit 1\n' ${pkgs.runtimeShell} \
+      top="$PWD"
+      mkdir -p realise/proj/sub
+      touch realise/proj/flake.nix
+      printf '#!%s\nprintf "%%s " "$@" >%s/realise/args\nexit 1\n' ${pkgs.runtimeShell} "$top" \
         >realise/nix-store
-      chmod +x realise/nix-store
-      if env PATH="$PWD/realise:$PATH" LETS_SECRETS=dev \
-        ${unbuilt.apps.${system}.plain.program} 2>unbuilt.err; then
-        echo "❌ a decoder that cannot be built should fail" >&2
+      printf '#!%s\nprintf "%%s %%s" "$PWD" "$*" >%s/realise/eval\n' ${pkgs.runtimeShell} "$top" \
+        >realise/nix
+      chmod +x realise/nix-store realise/nix
+      unbuilt_fails() {
+        local label="$1" dir="$2" app="$3"
+        rm -f "$top/realise/args" "$top/realise/eval"
+        if (cd "$dir" && env PATH="$top/realise:$PATH" LETS_SECRETS=dev "$app") \
+          2>"$top/unbuilt.err"; then
+          echo "❌ $label: a decoder that cannot be built should fail" >&2
+          exit 1
+        fi
+        has_err "$top/unbuilt.err" 'secrets: cannot build the decoder (from LETS_SECRETS); run the task with nix run --no-eval-cache, through lets or in the dev shell'
+        case "$(<"$top/realise/args")" in
+        "--realise --no-gc-warning /nix/store/"*.drv" ") ;;
+        *)
+          echo "❌ $label: the decoder should be realised, got: $(<"$top/realise/args")" >&2
+          exit 1
+          ;;
+        esac
+      }
+      sed "s|^_LETS_SECRET_DRV=.*|_LETS_SECRET_DRV=$storedDrv|" \
+        ${unbuilt.apps.${system}.plain.program} >realise/stored
+      chmod +x realise/stored
+      unbuilt_fails "derivation in the store" realise/proj/sub "$top/realise/stored"
+      if [ "$(<realise/args)" != "--realise --no-gc-warning $storedDrv " ]; then
+        echo "❌ the decoder derivation in the store should be realised, got: $(<realise/args)" >&2
         exit 1
       fi
-      has_err unbuilt.err 'secrets: cannot build the decoder (from LETS_SECRETS)'
-      case "$(<realise/args)" in
-      "--realise --no-gc-warning /nix/store/"*-lets-decoder.drv" ") ;;
-      *)
-        echo "❌ an unbuilt decoder should be realised, got: $(<realise/args)" >&2
+      if [ -e realise/eval ]; then
+        echo "❌ a decoder derivation in the store needs no evaluation, got: $(<realise/eval)" >&2
         exit 1
-        ;;
-      esac
+      fi
       echo "✅ a missing decoder fails the task, an unbuilt one is built on demand"
+
+      unbuilt_fails "derivation gone" realise/proj/sub \
+        ${unbuilt.apps.${system}.plain.program}
+      has_err "$top/unbuilt.err" "secrets: re-evaluating $top/realise/proj to rebuild the decoder"
+      if [ "$(<realise/eval)" != "$top/realise/proj path-info --derivation --no-eval-cache .#plain" ]; then
+        echo "❌ a gone decoder derivation should re-evaluate the nearest flake, got: $(<realise/eval)" >&2
+        exit 1
+      fi
+      echo "✅ a gone decoder derivation re-evaluates the nearest flake before building"
+
+      unbuilt_fails "no flake" . ${unbuilt.apps.${system}.plain.program}
+      if [ -e realise/eval ]; then
+        echo "❌ without a flake.nix nothing should be evaluated, got: $(<realise/eval)" >&2
+        exit 1
+      fi
+      echo "✅ without a flake.nix a gone decoder derivation fails with the fix"
+
+      sed -e "s|^_LETS_SECRET_BIN=.*|_LETS_SECRET_BIN=/nowhere/lets-decoder|" \
+        -e "s|^_LETS_SECRET_DRV=.*|_LETS_SECRET_DRV=|" \
+        ${unbuilt.apps.${system}.plain.program} >realise/nodrv
+      chmod +x realise/nodrv
+      rm -f realise/args
+      if env PATH="$top/realise:$PATH" LETS_SECRETS=dev realise/nodrv 2>nodrv.err; then
+        echo "❌ a decoder without a derivation should fail" >&2
+        exit 1
+      fi
+      has_err nodrv.err 'secrets: cannot build the decoder (from LETS_SECRETS)'
+      if [ -e realise/args ]; then
+        echo "❌ an empty derivation path should not reach nix-store, got: $(<realise/args)" >&2
+        exit 1
+      fi
+      echo "✅ a decoder without a derivation fails without calling nix-store"
+
+      if grep -q lets-decoder ${
+        pkgs.closureInfo { rootPaths = [ unbuilt.packages.${system}.plain ]; }
+      }/store-paths; then
+        echo "❌ a task that never decrypts should keep the decoder out of its closure" >&2
+        exit 1
+      fi
+      echo "✅ a task that never decrypts keeps the decoder out of its closure"
+
+      mkdir nul
+      printf 'DB=a\0b\n' >nul/.env
+      if env -C nul ${vanilla.apps.${system}.plain.program} 2>nul.err; then
+        echo "❌ an env file with a NUL byte should fail the task" >&2
+        exit 1
+      fi
+      has_err nul.err 'env: .env contains NUL bytes (from envFiles)'
+      echo "✅ an env file with a NUL byte fails the task"
+
+      mkdir trail
+      printf 'DB=x\\\n' >trail/.env
+      printf 'DB=y\\\n' >trail/.rawtrail.enc.env
+      expect "a backslash before the last newline of a file is a line continuation" x \
+        env -C trail ${vanilla.apps.${system}.plain.program}
+      expect "a backslash before the last newline of decoder output is a line continuation" y \
+        env -C trail LETS_SECRETS=rawtrail ${vanilla.apps.${system}.plain.program}
 
       printf 'BASE=1\nDB=base-secret\n' >.base.enc.env
       expect "secrets.files load in every task, after envFiles" "base-secret 1" \
         ${withFilesApps.plain_base.program}
       expect "flake-parts: secrets.files load in every task" "base-secret 1" \
         ${fpFilesApps.plain_base.program}
-      expect "shell value equal to secrets.files is a file value" prod \
+      expect "shell value equal to secrets.files wins" base-secret \
         env DB=base-secret ${withFilesApps.loader.program}
-      expect "flake-parts: onError warn lets the task go on" local \
-        ${fpWarnApps.plain.program}
+      expect "a task's envFiles beat secrets.files" prod ${withFilesApps.loader.program}
+      expect "a task's secrets beat secrets.files" dev-secret ${withFilesApps.needs_dev.program}
+      expect "flake-parts: a task's envFiles beat secrets.files" prod \
+        ${fpFilesApps.loader.program}
+      expect "flake-parts: a task's secrets beat secrets.files" dev-secret \
+        ${fpFilesApps.needs_dev.program}
+      expect_warn "flake-parts: onError warn lets the task go on" local \
+        'skipped (from secrets.files)' ${fpWarnApps.plain.program}
       expect "secrets.files lose to the shell" "shell 1" \
         env DB=shell ${withFilesApps.plain_base.program}
       expect "LETS_NO_ENV_FILES skips secrets.files" "unset unset" \
         env LETS_NO_ENV_FILES=1 ${withFilesApps.plain_base.program}
+      expect_warn "LETS_NO_ENV_FILES=0 still loads envFiles" local \
+        'LETS_NO_ENV_FILES must be 1 to skip env files, ignored' \
+        env LETS_NO_ENV_FILES=0 ${vanilla.apps.${system}.plain.program}
+      expect_warn "LETS_NO_ENV_FILES=false still loads secrets.files" "base-secret 1" \
+        'LETS_NO_ENV_FILES must be 1 to skip env files, ignored' \
+        env LETS_NO_ENV_FILES=false ${withFilesApps.plain_base.program}
+      env LETS_NO_ENV_FILES=0 ${withFilesApps.loader.program} 2>nofiles.err >/dev/null
+      if [ "$(grep -c 'LETS_NO_ENV_FILES must be 1' nofiles.err)" != 1 ]; then
+        echo "❌ LETS_NO_ENV_FILES should warn once per task, got: $(<nofiles.err)" >&2
+        exit 1
+      fi
+      echo "✅ LETS_NO_ENV_FILES warns once per task"
+      expect "an empty -e value beats a file value" "" \
+        env LETS_ENV_VARS=DB= ${vanilla.apps.${system}.plain.program}
+      help_out="$(${vanilla.apps.${system}.help.program})"
+      for flag in "-E, --env-file" "-e, --env " "-S, --secret" "--no-env-files"; do
+        case "$help_out" in
+        *"lets $flag"*) ;;
+        *)
+          echo "❌ help should list lets $flag" >&2
+          exit 1
+          ;;
+        esac
+      done
+      echo "✅ help lists the env flags"
+      expect "a parent's secrets.files values win in a child" base-secret \
+        ${withFilesApps.parent_loader.program}
+      mkdir chain
+      cd chain
+      printf 'CONF_DIR=confdir\n' >.conf.env
+      mkdir confdir
+      printf 'DB=nested\n' >confdir/x.env
+      expect "an envFiles entry expands a value from an earlier file" nested \
+        ${chained.apps.${system}.plain.program}
+      expect "-E expands a value from envFiles" nested \
+        env LETS_ENV_SOURCES='file:$CONF_DIR/x.env' \
+        ${confOnly.apps.${system}.plain.program}
+      mkdir otherdir
+      printf 'DB=other\n' >otherdir/x.env
+      expect "an envFiles entry expands a value from -e" other \
+        env LETS_ENV_VARS=CONF_DIR=otherdir ${chained.apps.${system}.plain.program}
+      expect "-E expands a value from -e" other \
+        env LETS_ENV_SOURCES='file:$CONF_DIR/x.env' LETS_ENV_VARS=CONF_DIR=otherdir \
+        ${confOnly.apps.${system}.plain.program}
+      cd ..
+      echo "✅ entries expand values from earlier files and -e"
+
+      cp .env .env.seen
+      printf 'FROM_ENV=hello\n' >>.env
+      expect "a task's secrets see envFiles values" hello \
+        ${vanilla.apps.${system}.seen_dev.program}
+      expect "LETS_SECRETS sees envFiles values" hello \
+        env LETS_SECRETS=dev ${vanilla.apps.${system}.plain_seen.program}
+      expect "secrets.files see envFiles values" hello \
+        ${withFilesApps.plain_seen.program}
+      expect "a task's secrets see -e values" cli \
+        env LETS_ENV_VARS=FROM_ENV=cli ${vanilla.apps.${system}.seen_dev.program}
+      expect "LETS_SECRETS sees -e values" cli \
+        env LETS_SECRETS=dev LETS_ENV_VARS=FROM_ENV=cli \
+        ${vanilla.apps.${system}.plain_seen.program}
+      expect "secrets.files see -e values" cli \
+        env LETS_ENV_VARS=FROM_ENV=cli ${withFilesApps.plain_seen.program}
+      mv .env.seen .env
+      echo "✅ the decoder sees values from earlier files and -e"
+
       expect "{} keeps its position in the decoder command" \
-        "--first .dev.enc.env --last" \
+        "[--first][.dev.enc.env][--last]" \
         ${posApps.plain_argv.program}
 
       has_err ${vanilla.apps.${system}.plain.program} "lets-decoder"
@@ -965,8 +1271,8 @@
       }
       echo "✅ only decrypting tasks carry the decoder"
 
-      expect "a command list keeps its words in place" \
-        "--first .dev.enc.env --last" \
+      expect "a command list keeps its words in place, spaces included" \
+        "[--first][.dev.enc.env][--last][a b]" \
         ${listApps.plain_argv.program}
       if ${unreachableApps.needs_dev.program} 2>unreachable.err; then
         echo "❌ a decoder command missing from PATH should fail" >&2
@@ -983,7 +1289,7 @@
         exit 1
       fi
       has_err leak.err \
-        'secrets: .leak.enc.env:2: invalid variable name, decoder output must be KEY=VALUE lines (from LETS_SECRETS)'
+        'secrets: .leak.enc.env:3: invalid variable name, decoder output must be KEY=VALUE lines (from LETS_SECRETS)'
       if grep -q 'c2VjcmV0' leak.err; then
         echo "❌ a malformed secret line was printed: $(<leak.err)" >&2
         exit 1
@@ -1003,7 +1309,8 @@
         fi
       done
       printf 'PATH=/nowhere\nDB=res\n' >.rawres.enc.env
-      expect "a reserved key in decoder output is skipped" res \
+      expect_warn "a reserved key in decoder output is skipped" res \
+        'PATH is reserved, skipped' \
         env LETS_SECRETS=rawres ${vanilla.apps.${system}.plain.program}
       env LETS_SECRETS=rawres ${vanilla.apps.${system}.plain.program} \
         2>res.err >/dev/null
@@ -1011,17 +1318,55 @@
       echo "✅ malformed decoder output fails without being printed"
 
       err="$(${pkgs.bash}/bin/bash -x ${vanilla.apps.${system}.quiet_dev.program} 2>&1)"
-      if [[ $err == *dev-secret* ]]; then
-        echo "❌ a task's secrets were traced under bash -x: $err" >&2
+      if [[ $err == *dev-secret* || $err != *_lets_env_export* ]]; then
+        echo "❌ a task's secrets were traced, or nothing was, under bash -x: $err" >&2
         exit 1
       fi
       err="$(env LETS_SECRETS=prod ${pkgs.bash}/bin/bash -x \
         ${vanilla.apps.${system}.quiet.program} 2>&1)"
-      if [[ $err == *prod-secret* ]]; then
-        echo "❌ LETS_SECRETS were traced under bash -x: $err" >&2
+      if [[ $err == *prod-secret* || $err != *_lets_env_export* ]]; then
+        echo "❌ LETS_SECRETS were traced, or nothing was, under bash -x: $err" >&2
         exit 1
       fi
       echo "✅ decrypted secrets are never traced"
+
+      cp .env .env.bak
+      printf 'TOKEN=f1lesecret\n' >>.env
+      printf 'CLI_TOKEN=cl1secret\n' >.xtrace.env
+      err="$(env SHELLOPTS=xtrace LETS_ENV_SOURCES="file:$PWD/.xtrace.env" \
+        LETS_ENV_VARS=VAR_TOKEN=v4rsecret \
+        ${vanilla.apps.${system}.quiet_dev.program} 2>&1)"
+      mv .env.bak .env
+      for value in f1lesecret dev-secret cl1secret v4rsecret; do
+        if [[ $err == *"$value"* ]]; then
+          echo "❌ $value was traced under SHELLOPTS=xtrace: $err" >&2
+          exit 1
+        fi
+      done
+      if [[ $err != *_lets_env_export* ]]; then
+        echo "❌ SHELLOPTS=xtrace did not trace the task: $err" >&2
+        exit 1
+      fi
+      echo "✅ files, secrets, -E and -e are never traced under xtrace"
+      ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+        big="$(head -c 100000 /dev/zero | tr '\0' a)"
+        printf 'DB=%s\n' "$big$big" >.big.enc.env
+        env LETS_SECRETS=big LETS_ENV_VARS="OTHER=$big" \
+          ${pkgs.strace}/bin/strace -f -qq -e trace=%file -o big.trace \
+          ${vanilla.apps.${system}.plain_two.program} >big.out
+        if [ "$(wc -c <big.out)" != 300002 ]; then
+          echo "❌ a large secret and -e value did not load: $(wc -c <big.out) bytes" >&2
+          exit 1
+        fi
+        if grep -F O_CREAT big.trace; then
+          echo "❌ loading a large secret and -e value created a file" >&2
+          exit 1
+        fi
+        echo "✅ large secrets and -e values are never written to disk"
+      ''}
+
+      expect "loading leaves no decoder text in the task" clean \
+        ${vanilla.apps.${system}.residue_dev.program}
 
       grep -q lets-decoder ${
         pkgs.closureInfo { rootPaths = [ vanilla.packages.${system}.lets ]; }
@@ -1043,6 +1388,30 @@
       done
       echo "✅ decoder output without a KEY=VALUE line fails the task"
 
+      printf 'PATH=/x\n' >.rawonlyres.enc.env
+      if env LETS_SECRETS=rawonlyres ${vanilla.apps.${system}.plain.program} \
+        2>onlyres.err; then
+        echo "❌ decoder output with only reserved keys should fail" >&2
+        exit 1
+      fi
+      has_err onlyres.err 'PATH is reserved, skipped'
+      has_err onlyres.err 'printed no KEY=VALUE line with a value'
+      echo "✅ decoder output with only reserved keys says why it fails"
+
+      printf '%s\n' 'A=''${MISSING_X:?need it}' >.rawreq.enc.env
+      if env LETS_SECRETS=rawreq ${vanilla.apps.${system}.plain.program} \
+        2>req.err; then
+        echo "❌ a required value missing from decoder output should fail" >&2
+        exit 1
+      fi
+      has_err req.err '.rawreq.enc.env:1: need it (from LETS_SECRETS)'
+      echo "✅ a required value in decoder output fails without the format hint"
+
+      printf 'DB=app\nDB_PASSWORD=\n' >.rawpartial.enc.env
+      expect_warn "an empty secret value warns with its key" app \
+        'secrets: .rawpartial.enc.env: DB_PASSWORD is empty (from LETS_SECRETS)' \
+        env LETS_SECRETS=rawpartial ${vanilla.apps.${system}.plain.program}
+
       printf 'c2VjcmV0dG9rZQ==\n' >.rawpad.enc.env
       if env LETS_SECRETS=rawpad ${vanilla.apps.${system}.plain.program} \
         2>rawpad.err; then
@@ -1050,12 +1419,18 @@
         exit 1
       fi
       has_err rawpad.err \
-        "secrets: .rawpad.enc.env:1: value starts with '=', decoder output must be KEY=VALUE lines (from LETS_SECRETS)"
+        "secrets: .rawpad.enc.env: a value is only '=', decoder output must be KEY=VALUE lines (from LETS_SECRETS)"
       if grep -q c2VjcmV0 rawpad.err; then
         echo "❌ a bare secret was printed: $(<rawpad.err)" >&2
         exit 1
       fi
-      echo "✅ decoder output with a value that starts with = fails the task"
+      echo "✅ decoder output with a value that is only = fails the task"
+      printf "DB='=Xy9q'\n" >.eqquoted.enc.env
+      printf 'DB==abc\n' >.equnquoted.enc.env
+      expect "a quoted secret value may start with =" "=Xy9q" \
+        env LETS_SECRETS=eqquoted ${vanilla.apps.${system}.plain.program}
+      expect "an unquoted secret value may start with =" "=abc" \
+        env LETS_SECRETS=equnquoted ${vanilla.apps.${system}.plain.program}
 
       printf 'TOKEN s3cr3t==\n' >.typo.env
       if env LETS_ENV_FILES=.typo.env ${vanilla.apps.${system}.plain.program} \
@@ -1063,7 +1438,7 @@
         echo "❌ a line with an invalid name should fail" >&2
         exit 1
       fi
-      has_err typo.err 'typo.env:1: invalid variable name (from LETS_ENV_FILES)'
+      has_err typo.err "typo.env:1: expected '=' right after the name (from LETS_ENV_FILES)"
       if grep -q s3cr3t typo.err; then
         echo "❌ an invalid line was printed: $(<typo.err)" >&2
         exit 1
@@ -1083,7 +1458,8 @@
       printf 'FROM_TILDE=1\n' >home/tilde.env
       printf 'FROM_BRACED=1\n' >dir/braced.env
       printf 'FROM_PLAIN=1\n' >dir/plain.env
-      expect "envFiles entries expand ~/ and variables" "1 1 1 1" \
+      expect_warn "envFiles entries expand ~/ and variables" "1 1 1 1" \
+        'pwned`.env not found, skipped' \
         env HOME="$PWD/home" LETS_TEST_DIR="$PWD/dir" ${expand}
       if [ -e pwned ]; then
         echo "❌ command substitution in an envFiles entry was executed" >&2
@@ -1143,7 +1519,7 @@
             exit 1
           fi
           case "$err" in
-          *".env:1: missing '=' (from envFiles)"*) ;;
+          *".env:1: expected '=' after the name (from envFiles)"*) ;;
           *)
             echo "❌ greet $args failed with: $err" >&2
             exit 1
@@ -1156,7 +1532,7 @@
         exit 1
       fi
       case "$err" in
-      *".env:1: missing '=' (from envFiles)"*) ;;
+      *".env:1: expected '=' after the name (from envFiles)"*) ;;
       *)
         echo "❌ hosted -h x failed with: $err" >&2
         exit 1

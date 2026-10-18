@@ -50,6 +50,9 @@ assert "task args pass through" \
   -E a.env demo --locale fr
 assert "-e" "sources=unset no=unset vars=A=1 args=$run_args" \
   -e A=1 demo
+assert "env flags after the task go to the task" \
+  "$base args=$run_args -E a.env -e A=1 -S dev --no-env-files" \
+  demo -E a.env -e A=1 -S dev --no-env-files
 assert "two -e" "sources=unset no=unset vars=A=1
 B=x=y args=$run_args" -e A=1 --env B=x=y demo
 assert "--env=" \

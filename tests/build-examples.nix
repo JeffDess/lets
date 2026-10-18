@@ -30,6 +30,7 @@ let
         args = c.args or [ ];
         env = c.env or { };
         unset = c.unset or [ ];
+        files = c.files or { };
         stdout = c.stdout or null;
         stderr = c.stderr or null;
         status = c.status or 0;

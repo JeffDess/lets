@@ -23,11 +23,7 @@ let
   envVarOf = el: lib.removeSuffix "}" (lib.removePrefix "{" (lib.removePrefix "$" el));
   literalDefaults = f: builtins.filter (el: !isEnvRef el) (defaultElems f);
 in
-{
-  name,
-  normArgs,
-  helpScan ? false,
-}:
+{ name, normArgs }:
 let
   resolvedName = name;
   argNames = builtins.attrNames normArgs;
@@ -245,10 +241,9 @@ let
     )
   ) argNames;
 in
-if helpScan then
-  lib.concatStringsSep "\n" scanFunction
-else
-  lib.concatStringsSep "\n" (
+{
+  wantsHelp = lib.concatStringsSep "\n" scanFunction;
+  parse = lib.concatStringsSep "\n" (
     initLines
     ++ [
       ""
@@ -284,4 +279,5 @@ else
     ++ positionalBindings
     ++ aliasBindings
     ++ requiredChecks
-  )
+  );
+}
