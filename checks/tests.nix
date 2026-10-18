@@ -24,6 +24,37 @@
           exit 1
         fi
       '';
+  dotenv =
+    let
+      spec = pkgs.fetchFromGitHub {
+        owner = "php-xdg";
+        repo = "dotenv-spec";
+        rev = "828447c004f4fb9cee22b221c742ff3b7db47cab";
+        hash = "sha256-wvx4CHMNVcOEh0lKiiUG8FYBVz2mDgs/VaPTP3KHq0U=";
+      };
+      module = ../scripts/dotenv.sh;
+      tests = ../tests/dotenv;
+    in
+    pkgs.runCommand "check-dotenv"
+      {
+        nativeBuildInputs = [
+          pkgs.jq
+          pkgs.shellcheck
+        ];
+      }
+      ''
+        bash ${tests}/conformance.sh ${module} ${spec}/tests/evaluation
+        bash ${tests}/extensions.sh ${module}
+        bash ${tests}/differential.sh ${module}
+        {
+          printf '#!/usr/bin/env bash\nset -euo pipefail\necho wrapped\n'
+          printf 'if true; then\n'
+          tail -n +2 ${module}
+          printf 'fi\n'
+        } >"$TMPDIR/wrapped.sh"
+        shellcheck -s bash -e SC2329 "$TMPDIR/wrapped.sh"
+        touch "$out"
+      '';
   examples =
     let
       aliasesHelp =
@@ -60,7 +91,12 @@
           unsetargs=()
           for u in "''${unsetv[@]}"; do unsetargs+=(-u "$u"); done
           errf="$TMPDIR/stderr"
-          if actual=$(env "''${unsetargs[@]}" "''${envv[@]}" \
+          casedir="$TMPDIR/case-$total"
+          mkdir -p "$casedir"
+          while IFS= read -r -d "" f && IFS= read -r -d "" body; do
+            printf '%s' "$body" >"$casedir/$f"
+          done < <(jq -j '.files | to_entries[] | "\(.key)\u0000\(.value)\u0000"' <<<"$c")
+          if actual=$(cd "$casedir" && env "''${unsetargs[@]}" "''${envv[@]}" \
             "$bin" "''${argv[@]}" 2>"$errf"); then
             code=0
           else

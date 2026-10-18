@@ -15,6 +15,21 @@ let
   words = s: builtins.filter (w: builtins.isString w && w != "") (builtins.split "[[:space:]]+" s);
   command = if builtins.isList raw.command then raw.command else words raw.command;
   hasSlot = commandOk && builtins.elem "{}" command;
+  shellLike =
+    commandOk
+    && builtins.isString raw.command
+    && lib.any (c: lib.hasInfix c raw.command) [
+      "'"
+      "\""
+      "\\"
+      "|"
+      ";"
+      "&"
+      "<"
+      ">"
+      "$"
+      "`"
+    ];
   inherit (cfg) pattern files onError;
   inputs = cfg.runtimeInputs;
   checks = [
@@ -31,7 +46,11 @@ let
       "lets: secrets.command must be a string or a list of words"
     ]
     [
-      (!commandOk || hasSlot)
+      (!shellLike)
+      "lets: secrets.command is split on spaces, not run by a shell: write it as a list"
+    ]
+    [
+      (!commandOk || shellLike || hasSlot)
       "lets: secrets.command must contain {} as a word of its own"
     ]
     [

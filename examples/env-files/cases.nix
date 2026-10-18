@@ -1,272 +1,143 @@
+let
+  layers = {
+    ".env" = "APP_NAME=demo\nDB_HOST=localhost\n";
+    ".prod.env" = "DB_HOST=prod.example.com\n";
+  };
+  expand = {
+    "expand.env" =
+      "HOST=db\nPORT=\${PORT:-5432}\nURL=\"https://$HOST:$PORT/app\"\nLITERAL='\${HOST}'\n";
+  };
+  required."required.env" = "TOKEN=\${TOKEN:?set TOKEN or use -S dev}\n";
+  reserved."reserved.env" = "PATH=/nowhere\nBASH_ENV=/evil\n_lets_x=1\nOK=1\n";
+  args."args.env" = "name=fromfile\nOTHER=ok\n";
+in
 [
   {
     task = "layered";
+    files = layers;
     stdout = "demo@prod.example.com";
     stderr = "";
   }
   {
     task = "layered";
+    files = layers;
     env.DB_HOST = "shell";
     stdout = "demo@shell";
     stderr = "";
   }
   {
     task = "layered";
-    env = {
-      DB_HOST = "shell";
-      POSIXLY_CORRECT = "1";
-    };
-    stdout = "demo@shell";
-    stderr = "";
-  }
-  {
-    task = "layered_override";
-    env.DB_HOST = "shell";
-    stdout = "demo@prod.example.com";
+    files = layers;
+    env.DB_HOST = "localhost";
+    stdout = "demo@localhost";
     stderr = "";
   }
   {
     task = "layered";
+    files = layers;
     env.LETS_ENV_VARS = "DB_HOST=cli";
     stdout = "demo@cli";
     stderr = "";
   }
   {
     task = "layered";
-    env = {
-      DB_HOST = "shell";
-      LETS_ENV_VARS = "DB_HOST=cli";
-    };
-    stdout = "demo@cli";
-  }
-  {
-    task = "layered_override";
-    env.LETS_ENV_VARS = "DB_HOST=cli";
-    stdout = "demo@cli";
-  }
-  {
-    task = "layered";
-    env.LETS_ENV_VARS = ''DB_HOST= "q" '';
-    stdout = ''demo@ "q" '';
-  }
-  {
-    task = "layered";
-    env.LETS_ENV_VARS = "DB_HOST=";
-    stdout = "demo@";
-  }
-  {
-    task = "layered";
-    env.LETS_ENV_VARS = "PATH=/nowhere";
-    status = 1;
-    stdout = "";
-    stderr = "PATH is reserved (from -e or LETS_ENV_VARS)";
-  }
-  {
-    task = "layered";
-    env.LETS_ENV_VARS = "_LETS_ENV_SPACE=x";
-    status = 1;
-    stdout = "";
-    stderr = "_LETS_ENV_SPACE is reserved (from -e or LETS_ENV_VARS)";
-  }
-  {
-    task = "task_args";
-    env.LETS_ENV_VARS = "name=cli";
-    status = 1;
-    stdout = "";
-    stderr = "name is reserved (from -e or LETS_ENV_VARS)";
+    files = layers;
+    env.LETS_NO_ENV_FILES = "1";
+    stdout = "@";
+    stderr = "";
   }
   {
     task = "syntax";
-    stdout = "yes|hello world|a # b|$(echo pwned)|ok|x|";
+    files."syntax.env" = ''
+      # comment lines and blank lines are ignored
+
+      export EXPORTED=yes
+      QUOTED="hello world"
+      SINGLE='a # b'
+      CONCAT=a'b'"c"
+      ESCAPED="say \"hi\""
+      COMMENTED=value # after whitespace, # starts a comment
+    '';
+    stdout = ''yes|hello world|a # b|abc|say "hi"|value|'';
     stderr = "";
   }
   {
-    task = "values";
-    stdout = ''abc==|http://x?a=b|v # note|||  p  |s|a\b\\c|ok|'';
+    task = "expansion";
+    files = expand;
+    stdout = "https://db:5432/app|5432|\${HOST}";
     stderr = "";
   }
   {
-    task = "missing";
+    task = "expansion";
+    files = expand;
+    env.PORT = "6000";
+    stdout = "https://db:6000/app|6000|\${HOST}";
+    stderr = "";
+  }
+  {
+    task = "required";
+    files = required;
     status = 1;
     stdout = "";
-    stderr = "does-not-exist.env not found";
+    stderr = "required.env:1: set TOKEN or use -S dev (from envFiles)";
   }
   {
-    task = "broken_link";
-    status = 1;
-    stderr = "broken.env is a broken symlink";
+    task = "required";
+    files = required;
+    env.TOKEN = "t";
+    stdout = "t";
+    stderr = "";
   }
   {
-    task = "bad_key";
+    task = "no_commands";
+    files."subst.env" = "A=$(touch pwned)\n";
     status = 1;
-    stderr = "bad-key.env:1: invalid variable name";
-  }
-  {
-    task = "no_equals";
-    status = 1;
-    stderr = "missing '='";
+    stdout = "";
+    stderr = "subst.env:1: command substitution and arithmetic are not supported (from envFiles)";
   }
   {
     task = "reserved";
-    stdout = "1 intact";
+    files = reserved;
+    stdout = "1";
     stderr = "PATH is reserved, skipped";
   }
   {
-    task = "special";
-    stdout = "literal bar";
-    stderr = "RANDOM is reserved, skipped";
+    task = "reserved";
+    files = reserved;
+    stdout = "1";
+    stderr = "BASH_ENV is reserved, skipped";
   }
   {
-    task = "read_only";
-    stdout = "FOO=bar";
-    stderr = "UID is reserved, skipped";
-  }
-  {
-    task = "local_names";
-    stdout = "kept|kept|kept|kept|";
-    stderr = "";
-  }
-  {
-    task = "reexport";
-    env.DB_HOST = "shell";
-    stdout = "prod.example.com";
-    stderr = "";
-  }
-  {
-    task = "unset_caller";
-    env.DB_HOST = "shell";
-    stdout = "prod.example.com";
-    stderr = "";
-  }
-  {
-    task = "locked_dir";
-    status = 1;
-    stderr = "locked/s.env is not a readable file";
-  }
-  {
-    task = "unicode_space";
-    env.LC_ALL = "C.UTF-8";
-    status = 1;
-    stderr = "invalid variable name";
-  }
-  {
-    task = "bom";
-    stdout = "ok";
-    stderr = "";
-  }
-  {
-    task = "unset_secret";
-    stdout = "clean";
-    stderr = "";
-  }
-  {
-    task = "declared";
-    stdout = "literal bar h 1 unset";
-    stderr = "N is reserved, skipped";
-  }
-  {
-    task = "declared_local";
-    stdout = "prod.example.com";
-    stderr = "";
+    task = "reserved";
+    files = reserved;
+    stdout = "1";
+    stderr = "_lets_x is reserved, skipped";
   }
   {
     task = "task_args";
-    args = [
-      "--name"
-      "cli"
-    ];
-    stdout = "cli false ok";
+    files = args;
+    stdout = "World ok";
     stderr = "name is reserved, skipped";
   }
   {
     task = "task_args";
-    stdout = "World false ok";
-    stderr = "loud is reserved, skipped";
+    files = args;
+    args = [
+      "--name"
+      "cli"
+    ];
+    stdout = "cli ok";
+    stderr = "name is reserved, skipped";
   }
   {
-    task = "nameref";
-    stdout = "intact";
-    stderr = "target is reserved, skipped";
+    task = "missing";
+    stdout = "ran";
+    stderr = "nope.env not found, skipped (from envFiles)";
   }
   {
-    task = "shell_vars";
-    stdout = "1 unset unset unset";
-    stderr = "FUNCNEST is reserved, skipped";
-  }
-  {
-    task = "shell_vars";
-    stdout = "1 unset unset unset";
-    stderr = "LINENO is reserved, skipped";
-  }
-  {
-    task = "shell_vars";
-    stdout = "1 unset unset unset";
-    stderr = "EPOCHSECONDS is reserved, skipped";
-  }
-  {
-    task = "partial";
-    stdout = "unset";
-    stderr = "partial.env:2: missing '='";
-  }
-  {
-    task = "multiline";
-    status = 1;
-    stderr = "multiline.env:1: unmatched quote";
-  }
-  {
-    task = "quoted_comment";
-    status = 1;
-    stderr = "quoted-comment.env:1: text after the closing quote, inline comments are not supported";
-  }
-  {
-    task = "mixed_quote";
-    status = 1;
-    stderr = "mixed-quote.env:1: unmatched quote";
-  }
-  {
-    task = "internal_names";
-    stdout = "[p]";
-    stderr = "_LETS_ENV_SPACE is reserved, skipped";
-  }
-  {
-    task = "internal_names";
-    stdout = "[p]";
-    stderr = "_lets_trim is reserved, skipped";
-  }
-  {
-    task = "edges";
-    stdout = "1|t|e|2|";
+    task = "crlf";
+    files."crlf.env" = "A=1\r\nB=\"two words\"\r\n";
+    stdout = "1|two words";
     stderr = "";
-  }
-  {
-    task = "empty_key";
-    status = 1;
-    stderr = "empty-key.env:1: invalid variable name";
-  }
-  {
-    task = "options";
-    env.DB_HOST = "shell";
-    stdout = "prod.example.com 1";
-    stderr = "";
-  }
-  {
-    task = "unknown_option";
-    status = 1;
-    stderr = "unknown option '-x'";
-  }
-  {
-    task = "no_file";
-    status = 1;
-    stderr = "usage: load_env";
-  }
-  {
-    task = "directory";
-    status = 1;
-    stderr = ". is not a readable file";
-  }
-  {
-    task = "unreadable";
-    status = 1;
-    stderr = "unreadable.env is not a readable file";
   }
 ]

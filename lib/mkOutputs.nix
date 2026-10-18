@@ -67,7 +67,7 @@ in
               echo "  lets -S, --secret        Decrypt secrets for this run"
               printf '      %s<name>%s               Repeatable, beats the shell and task files\n' \
                 "$GREEN" "$RESET"
-              echo "  lets --no-env-files      Skip the project's envFiles and secrets.files"
+              echo "  lets --no-env-files      Skip envFiles and secrets.files"
               printf '\n%s%s%sAvailable Tasks%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               ${helpLines}
               echo

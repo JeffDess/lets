@@ -52,7 +52,7 @@ let
       };
       no_env_files = {
         type = "flag";
-        description = "Skip the project's envFiles and secrets.files";
+        description = "Skip envFiles and secrets.files";
       };
       env = {
         short = "e";

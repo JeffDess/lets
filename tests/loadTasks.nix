@@ -111,7 +111,7 @@ in
           envFiles = [ ".env" ];
         };
       in
-      lib.hasInfix "_lets_env_autoload .env" ts.greet.app.text;
+      lib.hasInfix "  _lets_env_files .env\n" ts.greet.app.text;
     expected = true;
   };
 
@@ -123,7 +123,22 @@ in
           envFiles = [ ".env" ];
         };
       in
-      lib.hasInfix "_lets_env_autoload .env" bt.browse.app.text;
+      lib.hasInfix "  _lets_env_files .env\n" bt.browse.app.text;
+    expected = true;
+  };
+
+  testBaseTasksForwardSecrets = {
+    expr =
+      let
+        bt = import ../lib/mkBaseTasks.nix {
+          inherit pkgs;
+          secrets = {
+            command = "dec {}";
+            files = [ "base" ];
+          };
+        };
+      in
+      lib.hasInfix "_LETS_SECRET_FILES=(base)\n" bt.browse.app.text;
     expected = true;
   };
 
@@ -229,6 +244,41 @@ in
       in
       builtins.hasAttr (builtins.unsafeDiscardStringContext tool.drvPath) (builtins.getContext text);
     expected = true;
+  };
+
+  testSecretsCommandShellCharsMessage = {
+    expr = lib.unique (
+      map (c: secretsErrors { command = c; }) [
+        "sh -c 'sops -d {}'"
+        ''sops -d "{}"''
+        "sops -d {} | jq"
+        "sops -d {}; true"
+        "sops -d {} && true"
+        "sops -d {} >out"
+        "sops -d {} <in"
+        "sops -d $HOME/{}"
+        "sops -d {} `x`"
+        "sops\\ -d {}"
+      ]
+    );
+    expected = [
+      [
+        "lets: secrets.command is split on spaces, not run by a shell: write it as a list"
+      ]
+    ];
+  };
+
+  testSecretsCommandListKeepsShellChars = {
+    expr = secretsErrors {
+      command = [
+        "sh"
+        "-c"
+        ''sops -d "$1" | jq''
+        "_"
+        "{}"
+      ];
+    };
+    expected = [ ];
   };
 
   testSecretsCommandListAccepted = {
