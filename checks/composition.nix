@@ -1154,6 +1154,17 @@
       fi
       echo "✅ a task that never decrypts keeps the decoder out of its closure"
 
+      mkdir -p rel/sub
+      touch rel/flake.nix
+      printf 'DB=root\n' >rel/.env
+      printf 'DB=sub\n' >rel/sub/.env
+      got="$(cd rel/sub && ${vanilla.apps.${system}.plain.program} 2>"$top/rel.err")"
+      if [ "$got" != sub ] || [ -s rel.err ]; then
+        echo "❌ envFiles should load from the directory the task runs in, got: $got $(<rel.err)" >&2
+        exit 1
+      fi
+      echo "✅ envFiles load from the directory the task runs in"
+
       mkdir nul
       printf 'DB=a\0b\n' >nul/.env
       if env -C nul ${vanilla.apps.${system}.plain.program} 2>nul.err; then

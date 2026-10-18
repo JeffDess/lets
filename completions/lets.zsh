@@ -3,7 +3,6 @@ _lets() {
   local -a lines specs dirs
   local l v
   lines=( ${(f)"$(lets __complete "${(@)words[1,CURRENT]}" 2>/dev/null)"} )
-  # Each line is `value[<TAB>description]`; _describe wants `value:description`.
   for l in $lines; do
     v="${${l%%$'\t'*}//:/\\:}"
     [[ $l == *$'\t'* ]] && v+=":${l#*$'\t'}"
