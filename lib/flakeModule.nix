@@ -86,7 +86,7 @@ in
                     "ignore"
                   ];
                   default = defaults.onError;
-                  description = "What a failing decoder does for `secrets.files`; `warn` and `ignore` mask every failure, given the decoder is installed.";
+                  description = "What a failing decoder does for `secrets.files`: `fail` stops the task, `warn` and `ignore` run without them.";
                 };
               };
             }

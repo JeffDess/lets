@@ -21,6 +21,8 @@ A simple task runner that combines the power of Nix and Bash.
 * **[Auto-Discovery](#a-directory-auto-discovery)**: No complex file wiring,
   `lets` picks up your task files automatically
 * **[Base Tasks](#base-tasks)**: Import presets and reduce boilerplate code
+* **[Environment files](#environment-files)**: Load `.env` files and
+  encrypted secrets in your tasks
 * **[Text formatter](#text-formatting)**: Colorize and format your output with
   helper functions
 * **[Shell completions](#shell-completions)**: Auto-complete task names and
@@ -128,11 +130,15 @@ Already using [flake-parts](https://flake.parts)? Import the module and set
 ### Usage
 
 ```text
-lets <task>                      # Run task
-lets -h / --help [task]          # Display help, optionally for one task
-lets -s / --show <task>          # Display task details
-lets -c / --completions <shell>  # Print a shell completion script
-lets -v / --version              # Display version
+lets <task>                         # Run task
+lets -E / --env-file <file> <task>  # Load an env file for this run
+lets -e / --env KEY=VALUE <task>    # Set a variable for this run
+lets -S / --secret <name> <task>    # Decrypt secrets for this run
+lets --no-env-files <task>          # Skip envFiles and secrets.files
+lets -h / --help [task]             # Display help, optionally for one task
+lets -s / --show <task>             # Display task details
+lets -c / --completions <shell>     # Print a shell completion script
+lets -v / --version                 # Display version
 ```
 
 ### Demo task
@@ -226,6 +232,8 @@ Tasks have those attributes:
 | `runtimeInputs` | list of packages | No | Packages your task runs at runtime. Optional if no package is used in `run`, required for reproducibility. |
 | `run` | string | Yes | The implementation as an inline string or `builtins.readFile ./my-task.sh` to run an [external script](#external-scripts). |
 | `args` | attrset or list | No | CLI arguments (options, flags and positionals) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
+| `envFiles` | list of strings | No | Env files loaded before this task runs, after the project's. See [environment files](#environment-files). |
+| `secrets` | list of strings | No | Secrets decrypted before the task runs, with the project-wide `secrets.command`. See [secrets for a task](#secrets-for-a-task). |
 <!-- editorconfig-checker-enable -->
 
 > [!IMPORTANT]
@@ -295,6 +303,176 @@ in
   };
 }
 ```
+
+## Environment files
+
+### Loading files
+
+List the env files every task loads, and add more to a single task:
+
+> [!NOTE]
+> With the flake-parts module, set `perSystem.lets.envFiles` instead.
+
+```nix
+# flake.nix
+lets.lib.mkFlake {
+  inherit nixpkgs;
+  systems = [ "x86_64-linux" ];
+  tasks = ./tasks;
+  envFiles = [ ".env" "~/.config/lets/local.env" ];
+};
+```
+
+```nix
+# tasks/deploy.nix
+{ mkTask, ... }:
+{
+  deploy = mkTask {
+    description = "Deploy";
+    envFiles = [ ".deploy.env" ];
+    run = ''echo "Deploying to $DB_HOST"'';
+  };
+}
+```
+
+Files are read at runtime, so they never end up in the Nix store and
+can stay git-ignored. Paths are relative to the directory the task runs in,
+which is the project root with `lets`, and may use `~/` or environment
+variables (write `"\${VAR}"` in Nix). A missing file is skipped with a warning.
+
+Values are loaded before arguments are parsed, so they can feed
+[defaults](#default), e.g. `default = [ "$REGISTRY" ];`.
+
+### File format
+
+Env files must be POSIX compliant (see
+[dotenv-spec](https://github.com/php-xdg/dotenv-spec)). Nothing in them ever
+runs as a command:
+
+```sh
+# example.env
+APP_NAME=demo                        # comments are fine
+export DB_HOST=${DB_HOST:-localhost} # defaults
+API_URL="https://$DB_HOST/api"       # variables
+TOKEN=${TOKEN:?set TOKEN first}      # required values
+```
+
+A file with errors fails the task, and error messages never show values to
+prevent leaking secrets.
+Names lets or bash rely on, like `PATH`, `IFS`, `BASH_*` or the
+[formatting](#text-formatting) names, and the task's
+[arguments](#declarative-arguments) can't be set from a file: they are
+skipped with a warning.
+
+### Picking files at runtime
+
+Pass files, secrets or variables to `lets` for a single run:
+
+```bash
+$ lets -E .prod.env deploy
+# Deploying to prod.example.com
+
+$ lets -E .prod.env -e DB_HOST=db.local deploy
+# Deploying to db.local
+```
+
+Where there is no `lets` command (CI, git hooks), set `LETS_ENV_FILES`
+(colon-separated), `LETS_SECRETS` (same), `LETS_ENV_VARS` (one `KEY=VALUE`
+per line) or `LETS_NO_ENV_FILES=1` instead:
+
+```bash
+$ LETS_ENV_FILES=.prod.env nix run .#deploy
+# Deploying to prod.example.com
+```
+
+Unlike `envFiles`, a missing file given here fails the task, and `-E` paths
+are relative to your current directory. `--no-env-files` skips `envFiles` and
+`secrets.files` for one run. These flags go before the task name.
+
+### Secrets
+
+#### Setup
+
+Configure the command that fetches your secrets, like decrypting a file or
+calling a secret manager that prints an env file:
+
+> [!NOTE]
+> With the flake-parts module, set `perSystem.lets.secrets` instead.
+
+```nix
+# flake.nix
+lets.lib.mkFlake {
+  inherit nixpkgs;
+  systems = [ "x86_64-linux" ];
+  tasks = ./tasks;
+  secrets = {
+    command = "sops -d {}";
+    runtimeInputs = pkgs: [ pkgs.sops ];
+    pattern = ".{name}.enc.env"; # Defaults to "{name}"
+    files = [];                  # Default
+    onError = "fail";            # Default
+  };
+};
+```
+
+`pattern` turns a secret's name into the argument that replaces `{}`, so
+`lets -S dev deploy` runs `sops -d .dev.enc.env` in the directory the task
+runs in. Write `command` as a list, e.g. `[ "sops" "-d" "{}" ]`, when an
+argument contains spaces.
+
+The command must print an env file in the [same format](#file-format). With
+sops, encrypt your `.env` with `--input-type dotenv`: YAML or JSON files
+printed with `--output-type dotenv` don't quote their values.
+
+Decrypted values stay in memory and are never written to disk, and tasks that
+never decrypt don't carry the decryption tool around.
+
+#### Secrets for a task
+
+A task that always needs a secret declares it:
+
+```nix
+# tasks/up.nix
+{ mkTask, ... }:
+{
+  up = mkTask {
+    description = "Start the stack";
+    secrets = [ "dev" ]; # Uses secrets.pattern
+    run = "docker compose up";
+  };
+}
+```
+
+#### Secrets for all tasks
+
+`secrets.files = [ "base" ]` decrypts a file in every task, right after
+the project's `envFiles`, using `secrets.pattern` like a task's secrets.
+`--no-env-files` skips it too.
+
+> [!TIP]
+> Think twice before configuring it: your `lint` task probably doesn't need
+> to load your secrets!
+
+#### When decryption fails
+
+A failed decryption fails the task. For `secrets.files` only, set
+`onError = "warn"` (or `"ignore"`) to run without them, e.g. when not every
+developer has the key.
+
+### Precedence
+
+Your shell wins over `envFiles` and secrets, the command line wins over
+everything, and when several files set the same variable, the last one wins:
+
+```text
+project envFiles < secrets.files < task envFiles < task secrets
+  < your shell < -E and -S < -e
+```
+
+When a task [runs another one](#task-composition), the child sees the
+parent's values as its shell.
+
+More examples: [`env-files`](examples/env-files/task.nix)
 
 ## Text formatting
 
@@ -383,7 +561,8 @@ Each prints the uppercased level followed by `:` and your message, e.g.
 
 > [!IMPORTANT]
 > These names are **reserved** in every task's `run`: the constants, the color
-> and style functions, and the log helper functions listed above.
+> and style functions, the log helper functions listed above, and names
+> starting with `_lets_`, `_LETS_`, `dotenv_`, `_dotenv_` or `DOTENV_`.
 > Avoid redefining them in your scripts.
 
 Here's a minimal example:
@@ -518,9 +697,9 @@ letter that takes a value uses the rest of the word, or the next word if
 nothing is left:
 
 ```bash
-$ lets greet -eu        # same as -e -u
-$ lets greet -nFoo      # same as -n Foo
-$ lets greet -eun Foo   # same as -e -u -n Foo
+lets greet -eu        # same as -e -u
+lets greet -nFoo      # same as -n Foo
+lets greet -eun Foo   # same as -e -u -n Foo
 ```
 
 Full example: [`greet-short`](examples/greet-short/task.nix)
@@ -928,8 +1107,9 @@ so a project on a different `nixpkgs` gets a mixed closure.
 ## Shell completions
 
 Completions cover the `lets` flags and options, every task (including nested
-ones), each task's options and flags, and the task name expected by
-`lets --show` and `lets --help`.
+ones), each task's options and flags, the task name expected by
+`lets --show` and `lets --help`, file names after `-E`, and secret names after
+`-S` (found through `secrets.pattern`).
 Supported shells are: `bash`, `zsh`, `fish` and `nushell`.
 
 ### Install

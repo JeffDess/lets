@@ -51,13 +51,6 @@ in
               printf '%s-------------------------%s\n\n' "$DIM" "$RESET"
               printf '%s%s%sUsage%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               echo "  lets <task> [args...]"
-              echo "  lets -h, --help          Display this help message"
-              printf '      %s[task]%s               Show help for a single task\n' "$GREEN" "$RESET"
-              echo "  lets -s, --show          Show a task's usage, packages and script"
-              printf '      %s<task>%s               The task to show\n' "$GREEN" "$RESET"
-              echo "  lets -c, --completions   Print a shell completion script"
-              printf '      %s<shell>%s              bash, zsh, fish or nushell\n' "$GREEN" "$RESET"
-              echo "  lets -v, --version       Show version, description and repository"
               echo "  lets -E, --env-file      Load an env file for this run"
               printf '      %s<file>%s               Repeatable, beats the shell and task files\n' \
                 "$GREEN" "$RESET"
@@ -68,6 +61,13 @@ in
               printf '      %s<name>%s               Repeatable, beats the shell and task files\n' \
                 "$GREEN" "$RESET"
               echo "  lets --no-env-files      Skip envFiles and secrets.files"
+              echo "  lets -h, --help          Display this help message"
+              printf '      %s[task]%s               Show help for a single task\n' "$GREEN" "$RESET"
+              echo "  lets -s, --show          Show a task's usage, packages and script"
+              printf '      %s<task>%s               The task to show\n' "$GREEN" "$RESET"
+              echo "  lets -c, --completions   Print a shell completion script"
+              printf '      %s<shell>%s              bash, zsh, fish or nushell\n' "$GREEN" "$RESET"
+              echo "  lets -v, --version       Show version, description and repository"
               printf '\n%s%s%sAvailable Tasks%s\n' "$BOLD" "$UNDERLINE" "$BLUE" "$RESET"
               ${helpLines}
               echo
