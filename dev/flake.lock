@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "dotenv-spec": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1679206866,
+        "narHash": "sha256-wvx4CHMNVcOEh0lKiiUG8FYBVz2mDgs/VaPTP3KHq0U=",
+        "owner": "php-xdg",
+        "repo": "dotenv-spec",
+        "rev": "828447c004f4fb9cee22b221c742ff3b7db47cab",
+        "type": "github"
+      },
+      "original": {
+        "owner": "php-xdg",
+        "repo": "dotenv-spec",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -53,6 +69,7 @@
     },
     "root": {
       "inputs": {
+        "dotenv-spec": "dotenv-spec",
         "git-hooks": "git-hooks"
       }
     }

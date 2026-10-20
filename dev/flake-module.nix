@@ -61,7 +61,12 @@
 
       checks = import ../checks {
         inherit pkgs system taskOutputs;
-        inherit (inputs) self nixpkgs flake-parts;
+        inherit (inputs)
+          self
+          nixpkgs
+          flake-parts
+          dotenv-spec
+          ;
       };
     };
 }

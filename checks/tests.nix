@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, dotenv-spec }:
 {
   unit =
     pkgs.runCommand "check-unit"
@@ -26,12 +26,6 @@
       '';
   dotenv =
     let
-      spec = pkgs.fetchFromGitHub {
-        owner = "php-xdg";
-        repo = "dotenv-spec";
-        rev = "828447c004f4fb9cee22b221c742ff3b7db47cab";
-        hash = "sha256-wvx4CHMNVcOEh0lKiiUG8FYBVz2mDgs/VaPTP3KHq0U=";
-      };
       module = ../scripts/dotenv.sh;
       tests = ../tests/dotenv;
     in
@@ -43,7 +37,7 @@
         ];
       }
       ''
-        bash ${tests}/conformance.sh ${module} ${spec}/tests/evaluation
+        bash ${tests}/conformance.sh ${module} ${dotenv-spec}/tests/evaluation
         bash ${tests}/extensions.sh ${module}
         bash ${tests}/differential.sh ${module}
         {
