@@ -329,4 +329,17 @@ in
       lib.hasInfix "/bin/lets-decoder" ts.greet.app.text;
     expected = true;
   };
+
+  ### Single file ###
+
+  testSingleFileLoadsItsTasks = {
+    expr = builtins.attrNames (loadTasks {
+      inherit pkgs;
+      src = ./fixtures/single-file.nix;
+    });
+    expected = [
+      "one"
+      "two"
+    ];
+  };
 }

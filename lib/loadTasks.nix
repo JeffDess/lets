@@ -54,7 +54,7 @@ let
       (lib.foldl' (acc: s: acc // s) { } perFile);
 
   loadPath =
-    tasks: if builtins.readFileType src == "directory" then loadDir tasks else apply tasks src;
+    tasks: if builtins.readFileType src == "directory" then loadDir tasks else apply tasks (import src);
 
   result = mkTasks (
     tasks: extraTasks // (if builtins.isPath src then loadPath tasks else apply tasks src)
