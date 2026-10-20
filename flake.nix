@@ -3,83 +3,43 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    flake-parts = {
-      url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
-    git-hooks = {
-      url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
   outputs =
-    inputs@{ flake-parts, git-hooks, ... }:
+    inputs@{ flake-parts, ... }:
     let
       version = "0.2.1";
       letsLib = import ./lib;
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ flake-parts.flakeModules.partitions ];
+
       systems = [
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
       ];
 
+      partitionedAttrs = {
+        checks = "dev";
+        devShells = "dev";
+      };
+
+      partitions.dev = {
+        extraInputsFlake = ./dev;
+        module = ./dev/flake-module.nix;
+      };
+
       perSystem =
-        { pkgs, system, ... }:
+        { pkgs, ... }:
         let
           tasks = letsLib.mkBaseTasks { inherit pkgs; };
           taskOutputs = letsLib.mkOutputs { inherit pkgs tasks; };
           letsCmd = letsLib.mkLets { inherit pkgs tasks version; };
-          preCommitCheck = git-hooks.lib.${system}.run {
-            src = ./.;
-            hooks = {
-              convco = {
-                enable = true;
-                entry = "${pkgs.lib.getExe tasks.lint_commits.app} --allow-fixup --message-file";
-              };
-              convco-push = {
-                enable = true;
-                name = "convco (push)";
-                stages = [ "pre-push" ];
-                pass_filenames = false;
-                always_run = true;
-                entry = "${pkgs.lib.getExe tasks.lint_commits.app} --protect main";
-              };
-              deadnix = {
-                enable = true;
-                settings.edit = true;
-              };
-              editorconfig-checker.enable = true;
-              nixfmt.enable = true;
-              shellcheck = {
-                enable = true;
-                excludes = [ "\\.zsh$" ];
-              };
-              shfmt = {
-                enable = true;
-                settings.indent = 2;
-                excludes = [ "\\.zsh$" ];
-              };
-              statix.enable = true;
-              typos.enable = true;
-            };
-          };
         in
         {
-          devShells.default = pkgs.mkShell {
-            packages = [ letsCmd ];
-            shellHook = ''
-              ${preCommitCheck.shellHook}
-              __lets_bash_version="''${BASH_VERSION:-}"
-              if [ -n "$__lets_bash_version" ] && type complete >/dev/null 2>&1; then
-                # shellcheck disable=SC1091
-                source ${taskOutputs.completionScripts.bash}
-              fi
-            '';
-            buildInputs = preCommitCheck.enabledPackages;
-          };
+          _module.args = { inherit tasks taskOutputs; };
 
           inherit (taskOutputs) apps;
 
@@ -103,14 +63,6 @@
           };
 
           formatter = pkgs.nixfmt-tree;
-
-          checks = {
-            pre-commit-check = preCommitCheck;
-          }
-          // import ./checks {
-            inherit pkgs system taskOutputs;
-            inherit (inputs) self nixpkgs flake-parts;
-          };
         };
 
       flake = {
