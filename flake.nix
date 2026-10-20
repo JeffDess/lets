@@ -7,8 +7,8 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
-    pre-commit-hooks = {
-      url = "github:cachix/pre-commit-hooks.nix";
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -17,7 +17,7 @@
     {
       self,
       nixpkgs,
-      pre-commit-hooks,
+      git-hooks,
       flake-parts,
     }:
     let
@@ -48,7 +48,7 @@
           tasks = mkBaseTasks { inherit pkgs; };
           taskOutputs = mkOutputs { inherit pkgs tasks; };
           letsCmd = mkLets { inherit pkgs tasks version; };
-          preCommitCheck = pre-commit-hooks.lib.${system}.run {
+          preCommitCheck = git-hooks.lib.${system}.run {
             src = ./.;
             hooks = {
               convco = {
