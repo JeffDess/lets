@@ -34,4 +34,4 @@ tests:
 flake-check:
   stage: test
   script:
-    - nix flake check
+    - nix flake check --no-update-lock-file
