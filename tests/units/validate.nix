@@ -9,71 +9,70 @@ let
       inherit rawArgs;
       normArgs = args.normalize rawArgs;
     };
-  ok = rawArgs: errs rawArgs == [ ];
 in
 {
   ### Aliases ###
 
   testAliasesValid = {
-    expr = ok { url.aliases.docs = "https://example.com/docs"; };
-    expected = true;
+    expr = errs { url.aliases.docs = "https://example.com/docs"; };
+    expected = [ ];
   };
 
   testRejectAliasesOnFlag = {
-    expr = ok {
+    expr = errs {
       verbose = {
         type = "flag";
         aliases.on = "true";
       };
     };
-    expected = false;
+    expected = [ "aliases must be an attribute set of strings on options or positionals: verbose" ];
   };
 
   testRejectAliasesList = {
-    expr = ok { url.aliases = [ "docs" ]; };
-    expected = false;
+    expr = errs { url.aliases = [ "docs" ]; };
+    expected = [ "aliases must be an attribute set of strings on options or positionals: url" ];
   };
 
   testRejectAliasNonString = {
-    expr = ok { url.aliases.docs = 42; };
-    expected = false;
+    expr = errs { url.aliases.docs = 42; };
+    expected = [ "aliases must be an attribute set of strings on options or positionals: url" ];
   };
 
   testRejectAliasEmptyName = {
-    expr = ok { url.aliases."" = "https://example.com"; };
-    expected = false;
+    expr = errs { url.aliases."" = "https://example.com"; };
+    expected = [ "alias names must be non-empty and, on positionals, not start with '-': url" ];
   };
 
   testRejectPositionalAliasDashName = {
-    expr = ok {
+    expr = errs {
       url = {
         type = "positional";
         index = 1;
         aliases."-d" = "https://example.com/docs";
       };
     };
-    expected = false;
+    expected = [ "alias names must be non-empty and, on positionals, not start with '-': url" ];
   };
 
   testOptionAliasDashName = {
-    expr = ok { url.aliases."-d" = "https://example.com/docs"; };
-    expected = true;
+    expr = errs { url.aliases."-d" = "https://example.com/docs"; };
+    expected = [ ];
   };
 
   ### Accepts valid shapes ###
 
   testValidEmpty = {
-    expr = ok { };
-    expected = true;
+    expr = errs { };
+    expected = [ ];
   };
 
   testValidOptionWithShort = {
-    expr = ok { name.short = "n"; };
-    expected = true;
+    expr = errs { name.short = "n"; };
+    expected = [ ];
   };
 
   testValidContiguousPositionals = {
-    expr = ok {
+    expr = errs {
       src = {
         type = "positional";
         index = 1;
@@ -83,62 +82,62 @@ in
         index = 2;
       };
     };
-    expected = true;
+    expected = [ ];
   };
 
   ### Rejects invalid shapes ###
 
   testRejectDuplicateShort = {
-    expr = ok {
+    expr = errs {
       a.short = "x";
       b.short = "x";
     };
-    expected = false;
+    expected = [ "duplicate short name(s): -x" ];
   };
 
   testRejectBadName = {
-    expr = ok { "bad-name" = { }; };
-    expected = false;
+    expr = errs { "bad-name" = { }; };
+    expected = [ "invalid argument name(s) (need a bash identifier): bad-name" ];
   };
 
   testRejectShortTooLong = {
-    expr = ok { foo.short = "ab"; };
-    expected = false;
+    expr = errs { foo.short = "ab"; };
+    expected = [ "short must be a single letter: foo=\"ab\"" ];
   };
 
   testRejectBadType = {
-    expr = ok { foo.type = "switch"; };
-    expected = false;
+    expr = errs { foo.type = "switch"; };
+    expected = [ "invalid 'type' (allowed: option, flag, positional): foo=\"switch\"" ];
   };
 
   testRejectPositionalMissingIndex = {
-    expr = ok { src.type = "positional"; };
-    expected = false;
+    expr = errs { src.type = "positional"; };
+    expected = [ "positional argument(s) missing 'index': src" ];
   };
 
   testRejectPositionalBadIndex = {
-    expr = ok {
+    expr = errs {
       src = {
         type = "positional";
         index = 0;
       };
     };
-    expected = false;
+    expected = [ "positional 'index' must be an integer >= 1: src" ];
   };
 
   testRejectPositionalWithShort = {
-    expr = ok {
+    expr = errs {
       src = {
         type = "positional";
         index = 1;
         short = "s";
       };
     };
-    expected = false;
+    expected = [ "positional argument(s) cannot take a 'short': src" ];
   };
 
   testRejectNonContiguousPositionals = {
-    expr = ok {
+    expr = errs {
       src = {
         type = "positional";
         index = 1;
@@ -148,15 +147,15 @@ in
         index = 3;
       };
     };
-    expected = false;
+    expected = [ "positional 'index' values must be contiguous starting at 1 (got: 1, 3)" ];
   };
 
   testRejectListDuplicateNames = {
-    expr = ok [
+    expr = errs [
       "foo"
       "foo"
     ];
-    expected = false;
+    expected = [ "duplicate argument name(s): foo" ];
   };
 
   ### Error messages are part of the contract ###

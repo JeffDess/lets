@@ -108,7 +108,7 @@ in
   ### Invalid configs ###
 
   testRejectDuplicateShort = {
-    expr = builds (
+    expr = build (
       base
       // {
         args = {
@@ -117,36 +117,54 @@ in
         };
       }
     );
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "duplicate short name.*: -x";
+    };
   };
 
   testRejectBadName = {
-    expr = builds (base // { args."bad-name" = { }; });
-    expected = false;
+    expr = build (base // { args."bad-name" = { }; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "invalid argument name.*: bad-name";
+    };
   };
 
   testRejectReservedArgName = {
-    expr = builds (base // { args.help = { }; });
-    expected = false;
+    expr = build (base // { args.help = { }; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "argument name.* reserved .*: help";
+    };
   };
 
   testRejectShortTooLong = {
-    expr = builds (base // { args.foo.short = "ab"; });
-    expected = false;
+    expr = build (base // { args.foo.short = "ab"; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "short must be a single letter: foo=\"ab\"";
+    };
   };
 
   testRejectBadType = {
-    expr = builds (base // { args.foo.type = "switch"; });
-    expected = false;
+    expr = build (base // { args.foo.type = "switch"; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "invalid 'type'.*: foo=\"switch\"";
+    };
   };
 
   testRejectPositionalMissingIndex = {
-    expr = builds (base // { args.src.type = "positional"; });
-    expected = false;
+    expr = build (base // { args.src.type = "positional"; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "missing 'index': src";
+    };
   };
 
   testRejectPositionalBadIndex = {
-    expr = builds (
+    expr = build (
       base
       // {
         args.src = {
@@ -155,11 +173,14 @@ in
         };
       }
     );
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "positional 'index' must be an integer >= 1: src";
+    };
   };
 
   testRejectPositionalWithShort = {
-    expr = builds (
+    expr = build (
       base
       // {
         args.src = {
@@ -169,11 +190,14 @@ in
         };
       }
     );
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "cannot take a 'short': src";
+    };
   };
 
   testRejectPositionalsNonContiguous = {
-    expr = builds (
+    expr = build (
       base
       // {
         args = {
@@ -188,7 +212,10 @@ in
         };
       }
     );
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "must be contiguous starting at 1 \\(got: 1, 3\\)";
+    };
   };
 
   # Mirrors the README "Value aliases" example: a built base task's
@@ -231,7 +258,7 @@ in
   };
 
   testRejectListDuplicateNames = {
-    expr = builds (
+    expr = build (
       base
       // {
         args = [
@@ -240,7 +267,10 @@ in
         ];
       }
     );
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "duplicate argument name.*: foo";
+    };
   };
 
   ### Env preamble ###
@@ -253,8 +283,11 @@ in
           envFiles = [ "$1/.env" ];
         };
       in
-      (builtins.tryEval ((mkTaskEnv base).__build "test")).success;
-    expected = false;
+      (mkTaskEnv base).__build "test";
+    expectedError = {
+      type = "ThrownError";
+      msg = "envFiles entry '\\$1/\\.env' can only expand";
+    };
   };
 
   testEnvPreambleAlwaysIncluded = {
@@ -270,8 +303,11 @@ in
   };
 
   testTaskEnvFilesChecked = {
-    expr = builds (base // { envFiles = [ ../../README.md ]; });
-    expected = false;
+    expr = build (base // { envFiles = [ ../../README.md ]; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "envFiles must be strings";
+    };
   };
 
   testTaskSecretsReachPreamble = {
@@ -290,18 +326,27 @@ in
   ### Task secrets ###
 
   testTaskSecretsMustBeList = {
-    expr = builds (base // { secrets = "dev"; });
-    expected = false;
+    expr = build (base // { secrets = "dev"; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets must be a list of non-empty strings";
+    };
   };
 
   testTaskSecretsNamesNotEmpty = {
-    expr = builds (base // { secrets = [ "" ]; });
-    expected = false;
+    expr = build (base // { secrets = [ "" ]; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets must be a list of non-empty strings";
+    };
   };
 
   testTaskSecretsNeedDecoder = {
-    expr = builds (base // { secrets = [ "dev" ]; });
-    expected = false;
+    expr = build (base // { secrets = [ "dev" ]; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets needs a project-wide secrets\\.command";
+    };
   };
 
   testDecoderOutOfClosureWhenUnused = {
