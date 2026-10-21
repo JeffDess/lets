@@ -59,6 +59,7 @@
         if [ "$fail" = 0 ]; then
           cp "$TMPDIR/report" "$out"
         else
+          grep '❌' "$TMPDIR/report" >&2
           echo "❌ shell test assertions failed" >&2
           exit 1
         fi
@@ -147,6 +148,7 @@
           printf '%s' "$report" >"$out"
         else
           printf '%s' "$report" >&2
+          grep '❌' <<<"$report" >&2
           echo "❌ example assertions failed" >&2
           exit 1
         fi
