@@ -1,7 +1,7 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  mkTask = import ../lib/mkTask.nix { inherit pkgs; };
+  mkTask = import ../../lib/mkTask.nix { inherit pkgs; };
   build = cfg: (mkTask cfg).__build "test";
   builds = cfg: (builtins.tryEval (build cfg)).success;
 
@@ -9,7 +9,7 @@ let
     command = "fakedec {}";
     runtimeInputs = _: [ pkgs.hello ];
   };
-  decoderFixture = import ../lib/secrets.nix { inherit pkgs; } secretsFixture;
+  decoderFixture = import ../../lib/secrets.nix { inherit pkgs; } secretsFixture;
   decoderContext =
     built:
     (builtins.getContext built.app.text)
@@ -196,7 +196,7 @@ in
   testBaseTaskOverrideWithAliases = {
     expr =
       let
-        base' = (import ../lib/mkBaseTasks.nix { inherit pkgs; }).browse;
+        base' = (import ../../lib/mkBaseTasks.nix { inherit pkgs; }).browse;
         task = build {
           inherit (base') description runtimeInputs run;
           args = base'.args // {
@@ -216,7 +216,7 @@ in
   testLintCommitsBaseTaskBuilds = {
     expr =
       let
-        task = (import ../lib/mkBaseTasks.nix { inherit pkgs; }).lint_commits;
+        task = (import ../../lib/mkBaseTasks.nix { inherit pkgs; }).lint_commits;
       in
       (builtins.tryEval task.app.drvPath).success
       &&
@@ -248,7 +248,7 @@ in
   testEnvFilesCheckedByMkTask = {
     expr =
       let
-        mkTaskEnv = import ../lib/mkTask.nix {
+        mkTaskEnv = import ../../lib/mkTask.nix {
           inherit pkgs;
           envFiles = [ "$1/.env" ];
         };
@@ -270,14 +270,14 @@ in
   };
 
   testTaskEnvFilesChecked = {
-    expr = builds (base // { envFiles = [ ../README.md ]; });
+    expr = builds (base // { envFiles = [ ../../README.md ]; });
     expected = false;
   };
 
   testTaskSecretsReachPreamble = {
     expr =
       let
-        mkTaskSec = import ../lib/mkTask.nix {
+        mkTaskSec = import ../../lib/mkTask.nix {
           inherit pkgs;
           secrets = secretsFixture;
         };
@@ -307,7 +307,7 @@ in
   testDecoderOutOfClosureWhenUnused = {
     expr =
       let
-        mkTaskSec = import ../lib/mkTask.nix {
+        mkTaskSec = import ../../lib/mkTask.nix {
           inherit pkgs;
           secrets = secretsFixture;
         };
@@ -324,7 +324,7 @@ in
   testDecoderInClosureWhenTaskDecrypts = {
     expr =
       let
-        mkTaskSec = import ../lib/mkTask.nix {
+        mkTaskSec = import ../../lib/mkTask.nix {
           inherit pkgs;
           secrets = secretsFixture;
         };
@@ -337,7 +337,7 @@ in
   testTaskKeepsItsOwnInputsAndSecrets = {
     expr =
       let
-        mkTaskSec = import ../lib/mkTask.nix {
+        mkTaskSec = import ../../lib/mkTask.nix {
           inherit pkgs;
           secrets = secretsFixture;
         };
@@ -364,7 +364,7 @@ in
   testDecoderInClosureWithProjectFiles = {
     expr =
       let
-        mkTaskSec = import ../lib/mkTask.nix {
+        mkTaskSec = import ../../lib/mkTask.nix {
           inherit pkgs;
           secrets = secretsFixture // {
             files = [ "base" ];

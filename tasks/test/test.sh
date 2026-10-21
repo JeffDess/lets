@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-if [ ! -f tests/mkTask.nix ]; then
-  echo "Error: tests/mkTask.nix not found; run from the repository root" >&2
+if [ ! -d tests/units ]; then
+  echo "Error: tests/units not found; run from the repository root" >&2
   exit 1
 fi
 
@@ -18,7 +18,7 @@ fi
 echo
 echo "${BOLD}${UNDERLINE}${BLUE}Shell tests${RESET}"
 
-for shell_test in tests/browse.sh tests/lint-commits.sh; do
+for shell_test in tests/shell/*.sh; do
   if ! bash "$shell_test"; then
     rc=1
   fi

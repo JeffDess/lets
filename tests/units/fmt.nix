@@ -1,7 +1,7 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  fmt = import ../lib/fmt.nix { inherit (pkgs) lib; };
+  fmt = import ../../lib/fmt.nix { inherit (pkgs) lib; };
 in
 {
   ### Log helpers colorize against the fd they write to ###

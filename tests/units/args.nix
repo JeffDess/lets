@@ -1,7 +1,7 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  args = import ../lib/args.nix { inherit lib; };
+  args = import ../../lib/args.nix { inherit lib; };
 in
 {
   ### Normalisation ###

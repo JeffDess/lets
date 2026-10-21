@@ -1,8 +1,8 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  validate = import ../lib/validate.nix { inherit lib; };
-  args = import ../lib/args.nix { inherit lib; };
+  validate = import ../../lib/validate.nix { inherit lib; };
+  args = import ../../lib/args.nix { inherit lib; };
   errs =
     rawArgs:
     validate {

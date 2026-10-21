@@ -1,9 +1,9 @@
 { pkgs }:
 let
-  loadTasks = import ../lib/loadTasks.nix;
+  loadTasks = import ../../lib/loadTasks.nix;
   inherit (pkgs) lib;
-  envFilesErrors = import ../lib/envFiles.nix { inherit lib; };
-  secretsErrors = import ../lib/secretsErrors.nix { inherit lib; };
+  envFilesErrors = import ../../lib/envFiles.nix { inherit lib; };
+  secretsErrors = import ../../lib/secretsErrors.nix { inherit lib; };
   withCommand = extra: secretsErrors ({ command = "sops -d {}"; } // extra);
   pathsMsg = ''lets: envFiles must be strings (".env"), not paths: they are read at runtime, not copied to the store'';
   loadsWith =
@@ -43,24 +43,24 @@ in
   ### Duplicate task names across files ###
 
   testDuplicateAcrossFilesRejected = {
-    expr = loads ./fixtures/dup-tasks;
+    expr = loads ../fixtures/dup-tasks;
     expected = false;
   };
 
   ### envFiles ###
 
   testEnvFilesPathRejected = {
-    expr = loadsWith { envFiles = [ ../README.md ]; } (inlineTask "greet");
+    expr = loadsWith { envFiles = [ ../../README.md ]; } (inlineTask "greet");
     expected = false;
   };
 
   testEnvFilesPathMessage = {
-    expr = envFilesErrors [ ../README.md ];
+    expr = envFilesErrors [ ../../README.md ];
     expected = [ pathsMsg ];
   };
 
   testEnvFilesStorePathStringMessage = {
-    expr = envFilesErrors [ "${../README.md}" ];
+    expr = envFilesErrors [ "${../../README.md}" ];
     expected = [ pathsMsg ];
   };
 
@@ -118,7 +118,7 @@ in
   testBaseTasksForwardEnvFiles = {
     expr =
       let
-        bt = import ../lib/mkBaseTasks.nix {
+        bt = import ../../lib/mkBaseTasks.nix {
           inherit pkgs;
           envFiles = [ ".env" ];
         };
@@ -130,7 +130,7 @@ in
   testBaseTasksForwardSecrets = {
     expr =
       let
-        bt = import ../lib/mkBaseTasks.nix {
+        bt = import ../../lib/mkBaseTasks.nix {
           inherit pkgs;
           secrets = {
             command = "dec {}";
@@ -232,7 +232,7 @@ in
   testSecretsCommandWordsReachTheDecoder = {
     expr =
       lib.hasInfix ''exec sops -d "$1"''
-        (import ../lib/secrets.nix { inherit pkgs; } { command = "\tsops\t-d  {}\n"; }).package.text;
+        (import ../../lib/secrets.nix { inherit pkgs; } { command = "\tsops\t-d  {}\n"; }).package.text;
     expected = true;
   };
 
@@ -240,7 +240,7 @@ in
     expr =
       let
         tool = pkgs.writeText "tool" "";
-        inherit ((import ../lib/secrets.nix { inherit pkgs; } { command = "${tool} {}"; }).package) text;
+        inherit ((import ../../lib/secrets.nix { inherit pkgs; } { command = "${tool} {}"; }).package) text;
       in
       builtins.hasAttr (builtins.unsafeDiscardStringContext tool.drvPath) (builtins.getContext text);
     expected = true;
@@ -335,7 +335,7 @@ in
   testSingleFileLoadsItsTasks = {
     expr = builtins.attrNames (loadTasks {
       inherit pkgs;
-      src = ./fixtures/single-file.nix;
+      src = ../fixtures/single-file.nix;
     });
     expected = [
       "one"
