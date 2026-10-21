@@ -150,3 +150,9 @@ jobs:
         run: nix build -L ".#checks.${{ matrix.system }}.nix-unit"
       - name: Shell tests
         run: nix build -L ".#checks.${{ matrix.system }}.shell"
+      - name: Examples
+        run: nix build -L ".#checks.${{ matrix.system }}.examples"
+      - name: Completions
+        run: nix build -L ".#checks.${{ matrix.system }}.completions"
+      - name: Dotenv
+        run: nix build -L ".#checks.${{ matrix.system }}.dotenv"
