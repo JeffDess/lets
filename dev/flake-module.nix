@@ -1,6 +1,9 @@
 { inputs, ... }:
 {
-  imports = [ inputs.git-hooks.flakeModule ];
+  imports = [
+    inputs.git-hooks.flakeModule
+    inputs.nix-unit.modules.flake.default
+  ];
 
   perSystem =
     {
@@ -43,6 +46,14 @@
           };
           statix.enable = true;
           typos.enable = true;
+        };
+      };
+
+      nix-unit = {
+        package = pkgs.nix-unit;
+        inputs = {
+          inherit (inputs) nixpkgs flake-parts;
+          "flake-parts/nixpkgs-lib" = inputs.flake-parts.inputs.nixpkgs-lib;
         };
       };
 

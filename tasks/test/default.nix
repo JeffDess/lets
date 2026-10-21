@@ -10,7 +10,7 @@
     runtimeInputs = [
       pkgs.convco
       pkgs.gitMinimal
-      pkgs.jq
+      pkgs.nix-unit
       tasks.lint_commits.app
     ];
     run = builtins.readFile ./test.sh;

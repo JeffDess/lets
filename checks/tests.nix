@@ -1,29 +1,5 @@
 { pkgs, dotenv-spec }:
 {
-  unit =
-    pkgs.runCommand "check-unit"
-      {
-        failuresJson = builtins.toJSON (
-          pkgs.lib.runTests (import ../tests/args.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/validate.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/mkTask.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/mkCompletions.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/render.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/fmt.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/env.nix { inherit pkgs; })
-          ++ pkgs.lib.runTests (import ../tests/loadTasks.nix { inherit pkgs; })
-        );
-      }
-      ''
-        if [ "$failuresJson" = "[]" ]; then
-          echo "✅ unit tests passed"
-          touch "$out"
-        else
-          echo "❌ unit test failures:" >&2
-          printf '%s\n' "$failuresJson" >&2
-          exit 1
-        fi
-      '';
   dotenv =
     let
       module = ../scripts/dotenv.sh;
