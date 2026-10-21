@@ -55,10 +55,10 @@
         for t in ${src}/tests/shell/*.sh; do
           bash "$t" >>"$TMPDIR/report" || fail=1
         done
+        cat "$TMPDIR/report"
         if [ "$fail" = 0 ]; then
           cp "$TMPDIR/report" "$out"
         else
-          cat "$TMPDIR/report" >&2
           echo "❌ shell test assertions failed" >&2
           exit 1
         fi
