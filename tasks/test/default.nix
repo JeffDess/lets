@@ -1,18 +1,12 @@
 {
   pkgs,
   mkTask,
-  tasks,
   ...
 }:
 {
   test = mkTask {
     description = "Run the unit test suite";
-    runtimeInputs = [
-      pkgs.convco
-      pkgs.gitMinimal
-      pkgs.nix-unit
-      tasks.lint_commits.app
-    ];
+    runtimeInputs = [ pkgs.nix-unit ];
     run = builtins.readFile ./test.sh;
   };
 }

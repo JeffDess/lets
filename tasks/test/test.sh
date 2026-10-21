@@ -18,11 +18,12 @@ fi
 echo
 echo "${BOLD}${UNDERLINE}${BLUE}Shell tests${RESET}"
 
-for shell_test in tests/shell/*.sh; do
-  if ! bash "$shell_test"; then
-    rc=1
-  fi
-done
+if out=$(nix build --no-link --print-out-paths --option warn-dirty false \
+  ".#checks.$system.shell"); then
+  cat "$out"
+else
+  rc=1
+fi
 
 echo
 echo "${BOLD}${UNDERLINE}${BLUE}Examples${RESET}"
