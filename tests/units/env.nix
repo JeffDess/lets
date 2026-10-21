@@ -12,7 +12,7 @@ let
     argNames = [ "name" ];
     decoder = null;
   };
-  layers = text: lib.init (lib.splitString "\n" (lib.last (lib.splitString "\n{\n" text)));
+  layers = text: lib.splitString "\n" (lib.last (lib.splitString "\n{\n" text));
   secretVars = text: builtins.filter (lib.hasPrefix "_LETS_SECRET_") (lib.splitString "\n" text);
 in
 {
@@ -34,6 +34,7 @@ in
       "  _lets_env_task_secrets dev"
       "  _lets_env_cli"
       "  _lets_env_export"
+      "}"
     ];
   };
 
@@ -51,6 +52,7 @@ in
       "  _lets_env_task_secrets"
       "  _lets_env_cli"
       "  _lets_env_export"
+      "}"
     ];
   };
 
