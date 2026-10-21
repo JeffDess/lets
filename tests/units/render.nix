@@ -1,7 +1,7 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  render = import ../lib/render.nix { inherit pkgs; };
+  render = import ../../lib/render.nix { inherit pkgs; };
 
   renderDeploy =
     description:

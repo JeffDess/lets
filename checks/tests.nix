@@ -42,7 +42,7 @@
     pkgs.runCommand "check-examples"
       {
         nativeBuildInputs = [ pkgs.jq ];
-        casesJson = builtins.toJSON (import ../tests/build-examples.nix { inherit pkgs; });
+        casesJson = builtins.toJSON (import ../tests/examples/cases.nix { inherit pkgs; });
       }
       ''
         fail=0
@@ -115,15 +115,15 @@
       '';
   completions =
     let
-      fixtureLets = import ../tests/fixture-lets.nix { inherit pkgs; };
+      fixtureLets = import ../tests/fixtures/lets.nix { inherit pkgs; };
       L = "${fixtureLets}/bin/lets";
       plainPatternLets = import ../lib/mkLets.nix {
         inherit pkgs;
-        inherit (import ../tests/fixture.nix { inherit pkgs; }) tasks;
+        inherit (import ../tests/fixtures/tasks.nix { inherit pkgs; }) tasks;
       };
       dirPatternLets = import ../lib/mkLets.nix {
         inherit pkgs;
-        inherit (import ../tests/fixture.nix { inherit pkgs; }) tasks;
+        inherit (import ../tests/fixtures/tasks.nix { inherit pkgs; }) tasks;
         secrets = {
           command = "true {}";
           pattern = "secrets/{name}.yaml";
@@ -145,15 +145,15 @@
 
         echo "wrapper"
         (mkdir "$TMPDIR/wrapper" && cd "$TMPDIR/wrapper" &&
-          bash ${../tests/wrapper.sh} ${L}) || fail=1
+          bash ${../tests/completions/wrapper.sh} ${L}) || fail=1
         echo "bash"
-        bash ${../tests/bash-complete.sh} ${L} ${../completions/lets.bash} || fail=1
+        bash ${../tests/completions/bash-complete.sh} ${L} ${../completions/lets.bash} || fail=1
         echo "zsh"
-        zsh ${../tests/zsh-complete.zsh} ${L} ${../completions/lets.zsh} || fail=1
+        zsh ${../tests/completions/zsh-complete.zsh} ${L} ${../completions/lets.zsh} || fail=1
         echo "fish"
-        fish ${../tests/fish-complete.fish} ${L} ${../completions/lets.fish} || fail=1
+        fish ${../tests/completions/fish-complete.fish} ${L} ${../completions/lets.fish} || fail=1
         echo "nushell"
-        bash ${../tests/nu-complete.sh} ${L} ${../completions/lets.nu} || fail=1
+        bash ${../tests/completions/nu-complete.sh} ${L} ${../completions/lets.nu} || fail=1
         echo "secret names"
         touch "$TMPDIR/flake.nix" "$TMPDIR/dev"
         if [ -n "$(cd "$TMPDIR" && ${plainPatternLets}/bin/lets __complete lets -S "")" ]; then

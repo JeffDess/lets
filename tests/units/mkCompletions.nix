@@ -1,8 +1,8 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  mkCompletions = import ../lib/mkCompletions.nix { inherit pkgs; };
-  inherit (import ./fixture.nix { inherit pkgs; }) tasks;
+  mkCompletions = import ../../lib/mkCompletions.nix { inherit pkgs; };
+  inherit (import ../fixtures/tasks.nix { inherit pkgs; }) tasks;
 
   m = (mkCompletions { inherit tasks; }).model;
   aliasCompletions = mkCompletions {

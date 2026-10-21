@@ -82,7 +82,7 @@
         flakeModules.default = letsLib.flakeModule version;
 
         tests.systems = nixpkgs.lib.genAttrs systems (
-          system: import ./tests { pkgs = nixpkgs.legacyPackages.${system}; }
+          system: import ./tests/units { pkgs = nixpkgs.legacyPackages.${system}; }
         );
       };
     };

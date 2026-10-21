@@ -1,10 +1,10 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  mkTask = import ../lib/mkTask.nix { inherit pkgs; };
-  mkTasks = import ../lib/mkTasks.nix;
+  mkTask = import ../../lib/mkTask.nix { inherit pkgs; };
+  mkTasks = import ../../lib/mkTasks.nix;
 
-  dir = ../examples;
+  dir = ../../examples;
   entries = builtins.readDir dir;
   exNames = builtins.filter (
     n: entries.${n} == "directory" && builtins.pathExists (dir + "/${n}/cases.nix")

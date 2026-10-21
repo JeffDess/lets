@@ -1,7 +1,7 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  env = import ../lib/env.nix { inherit lib; };
+  env = import ../../lib/env.nix { inherit lib; };
   plain = env {
     envFiles = [
       ".env"
@@ -62,7 +62,7 @@ in
   testDecoderIsBaked = {
     expr =
       let
-        decoder = import ../lib/secrets.nix { inherit pkgs; } {
+        decoder = import ../../lib/secrets.nix { inherit pkgs; } {
           command = "sops -d {}";
           pattern = ".{name}.enc.env";
           files = [ "base" ];

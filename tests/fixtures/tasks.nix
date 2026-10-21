@@ -1,6 +1,6 @@
 { pkgs }:
 let
-  mkTask = import ../lib/mkTask.nix { inherit pkgs; };
+  mkTask = import ../../lib/mkTask.nix { inherit pkgs; };
   build = cfg: (mkTask cfg).__build "ignored";
 in
 {
