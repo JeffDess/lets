@@ -12,6 +12,8 @@ let
     argNames = [ "name" ];
     decoder = null;
   };
+  layers = text: lib.init (lib.splitString "\n" (lib.last (lib.splitString "\n{\n" text)));
+  secretVars = text: builtins.filter (lib.hasPrefix "_LETS_SECRET_") (lib.splitString "\n" text);
 in
 {
   ### Layers ###
@@ -22,8 +24,8 @@ in
   };
 
   testLayersInOrder = {
-    expr = lib.hasSuffix (lib.concatStringsSep "\n" [
-      "{"
+    expr = layers plain;
+    expected = [
       "  _lets_env_no_files_check"
       "  _lets_env_vars"
       "  _lets_env_files .env 'my file.env'"
@@ -32,17 +34,24 @@ in
       "  _lets_env_task_secrets dev"
       "  _lets_env_cli"
       "  _lets_env_export"
-      "}"
-    ]) plain;
-    expected = true;
+    ];
   };
 
   testEmptyLayersHaveNoArguments = {
-    expr = lib.hasInfix "  _lets_env_files\n  _lets_env_secret_files\n" (env {
+    expr = layers (env {
       envFiles = [ ];
       decoder = null;
     });
-    expected = true;
+    expected = [
+      "  _lets_env_no_files_check"
+      "  _lets_env_vars"
+      "  _lets_env_files"
+      "  _lets_env_secret_files"
+      "  _lets_env_files"
+      "  _lets_env_task_secrets"
+      "  _lets_env_cli"
+      "  _lets_env_export"
+    ];
   };
 
   testReservedPatterns = {
@@ -55,29 +64,38 @@ in
   ### Decoder ###
 
   testNoDecoderIsEmpty = {
-    expr = lib.hasInfix "_LETS_SECRET_BIN=''" plain;
-    expected = true;
+    expr = secretVars plain;
+    expected = [
+      "_LETS_SECRET_BIN=''"
+      "_LETS_SECRET_DRV=''"
+      "_LETS_SECRET_PATTERN='{name}'"
+      "_LETS_SECRET_ON_ERROR=fail"
+      "_LETS_SECRET_FILES=()"
+    ];
   };
 
-  testDecoderIsBaked = {
-    expr =
-      let
-        decoder = import ../../lib/secrets.nix { inherit pkgs; } {
-          command = "sops -d {}";
-          pattern = ".{name}.enc.env";
-          files = [ "base" ];
-          onError = "warn";
-        };
-        text = builtins.unsafeDiscardStringContext (env {
+  testDecoderIsBaked =
+    let
+      decoder = import ../../lib/secrets.nix { inherit pkgs; } {
+        command = "sops -d {}";
+        pattern = ".{name}.enc.env";
+        files = [ "base" ];
+        onError = "warn";
+      };
+    in
+    {
+      expr = map builtins.unsafeDiscardStringContext (
+        secretVars (env {
           envFiles = [ ];
           inherit decoder;
-        });
-      in
-      lib.hasInfix (builtins.unsafeDiscardStringContext "_LETS_SECRET_BIN=${decoder.package}/bin/lets-decoder") text
-      && lib.hasInfix (builtins.unsafeDiscardStringContext "_LETS_SECRET_DRV=${decoder.package.drvPath}") text
-      && lib.hasInfix "_LETS_SECRET_PATTERN='.{name}.enc.env'" text
-      && lib.hasInfix "_LETS_SECRET_ON_ERROR=warn" text
-      && lib.hasInfix "_LETS_SECRET_FILES=(base)" text;
-    expected = true;
-  };
+        })
+      );
+      expected = map builtins.unsafeDiscardStringContext [
+        "_LETS_SECRET_BIN=${decoder.package}/bin/lets-decoder"
+        "_LETS_SECRET_DRV=${decoder.package.drvPath}"
+        "_LETS_SECRET_PATTERN='.{name}.enc.env'"
+        "_LETS_SECRET_ON_ERROR=warn"
+        "_LETS_SECRET_FILES=(base)"
+      ];
+    };
 }
