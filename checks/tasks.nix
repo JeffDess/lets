@@ -205,4 +205,38 @@
 
     touch "$out"
   '';
+  update-flake = pkgs.runCommand "check-update-flake" { } ''
+    mkdir bin
+    printf '#!${pkgs.runtimeShell}\necho "$*" >>"$NIX_CALLS"\n' >bin/nix
+    chmod +x bin/nix
+    export PATH="$PWD/bin:$PATH"
+
+    mkdir repo && cd repo
+    touch flake.nix
+    export NIX_CALLS="$PWD/root-only"
+    ${taskOutputs.packages.update_flake}/bin/update_flake
+    if [ "$(cat root-only)" != "flake update" ]; then
+      echo "❌ update_flake without dev/: $(cat root-only)" >&2
+      exit 1
+    fi
+    echo "✅ update_flake skips dev/ when it has no flake.nix"
+
+    mkdir dev && touch dev/flake.nix
+    export NIX_CALLS="$PWD/with-dev"
+    ${taskOutputs.packages.update_flake}/bin/update_flake
+    if [ "$(cat with-dev)" != "$(printf 'flake update\nflake update --flake ./dev')" ]; then
+      echo "❌ update_flake with dev/: $(cat with-dev)" >&2
+      exit 1
+    fi
+    echo "✅ update_flake also updates the dev/ flake"
+
+    rm flake.nix
+    if ${taskOutputs.packages.update_flake}/bin/update_flake 2>/dev/null; then
+      echo "❌ update_flake ran outside a flake root" >&2
+      exit 1
+    fi
+    echo "✅ update_flake refuses to run outside a flake root"
+
+    touch "$out"
+  '';
 }
