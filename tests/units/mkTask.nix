@@ -235,9 +235,14 @@ in
           };
         };
       in
-      (builtins.tryEval task.app.drvPath).success
-      && task.args.url.aliases.docs == "https://example.com/docs";
-    expected = true;
+      {
+        builds = (builtins.tryEval task.app.drvPath).success;
+        docs = task.args.url.aliases.docs;
+      };
+    expected = {
+      builds = true;
+      docs = "https://example.com/docs";
+    };
   };
 
   testLintCommitsBaseTaskBuilds = {
@@ -245,16 +250,20 @@ in
       let
         task = (import ../../lib/mkBaseTasks.nix { inherit pkgs; }).lint_commits;
       in
-      (builtins.tryEval task.app.drvPath).success
-      &&
-        builtins.attrNames task.args == [
-          "allow_fixup"
-          "from"
-          "message_file"
-          "protect"
-          "to"
-        ];
-    expected = true;
+      {
+        builds = (builtins.tryEval task.app.drvPath).success;
+        args = builtins.attrNames task.args;
+      };
+    expected = {
+      builds = true;
+      args = [
+        "allow_fixup"
+        "from"
+        "message_file"
+        "protect"
+        "to"
+      ];
+    };
   };
 
   testRejectListDuplicateNames = {
@@ -358,12 +367,18 @@ in
         };
         built = (mkTaskSec base).__build "test";
       in
-      !builtins.elem decoderFixture.package built.runtimeInputs
-      && decoderContext built == { }
-      && lib.hasInfix (builtins.unsafeDiscardStringContext "${decoderFixture.package}/bin/lets-decoder") (
-        builtins.unsafeDiscardStringContext built.app.text
-      );
-    expected = true;
+      {
+        inRuntimeInputs = builtins.elem decoderFixture.package built.runtimeInputs;
+        context = decoderContext built;
+        pathBaked = lib.hasInfix (builtins.unsafeDiscardStringContext "${decoderFixture.package}/bin/lets-decoder") (
+          builtins.unsafeDiscardStringContext built.app.text
+        );
+      };
+    expected = {
+      inRuntimeInputs = false;
+      context = { };
+      pathBaked = true;
+    };
   };
 
   testDecoderInClosureWhenTaskDecrypts = {
@@ -375,8 +390,10 @@ in
         };
         built = (mkTaskSec (base // { secrets = [ "dev" ]; })).__build "test";
       in
-      decoderContext built ? outputs && !(decoderContext built ? path);
-    expected = true;
+      decoderContext built;
+    expected = {
+      outputs = [ "out" ];
+    };
   };
 
   testTaskKeepsItsOwnInputsAndSecrets = {
@@ -417,7 +434,9 @@ in
         };
         built = (mkTaskSec base).__build "test";
       in
-      decoderContext built ? outputs && !(decoderContext built ? path);
-    expected = true;
+      decoderContext built;
+    expected = {
+      outputs = [ "out" ];
+    };
   };
 }

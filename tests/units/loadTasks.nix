@@ -257,10 +257,11 @@ in
   };
 
   testSecretsCommandWordsReachTheDecoder = {
-    expr =
-      lib.hasInfix ''exec sops -d "$1"''
-        (import ../../lib/secrets.nix { inherit pkgs; } { command = "\tsops\t-d  {}\n"; }).package.text;
-    expected = true;
+    expr = lib.findFirst (lib.hasPrefix "exec ") null (
+      lib.splitString "\n"
+        (import ../../lib/secrets.nix { inherit pkgs; } { command = "\tsops\t-d  {}\n"; }).package.text
+    );
+    expected = ''exec sops -d "$1"'';
   };
 
   testSecretsCommandStringKeepsStorePaths = {
