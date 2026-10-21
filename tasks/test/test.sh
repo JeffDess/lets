@@ -7,6 +7,14 @@ fi
 
 rc=0
 
+mapfile -t untracked < <(git ls-files --others --exclude-standard -- tests)
+if [ "${#untracked[@]}" -gt 0 ]; then
+  warn "Untracked files are skipped until added to git:"
+  printf '  %s\n' "${untracked[@]}"
+  warn "Run: git add -N tests"
+  echo
+fi
+
 echo "${BOLD}${UNDERLINE}${BLUE}Unit tests${RESET}"
 
 system=$(nix eval --impure --raw --expr builtins.currentSystem)
