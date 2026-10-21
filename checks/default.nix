@@ -2,6 +2,7 @@
   pkgs,
   system,
   self,
+  tasks,
   nixpkgs,
   flake-parts,
   taskOutputs,
@@ -15,7 +16,7 @@
     taskOutputs
     ;
 })
-// (import ./tests.nix { inherit pkgs dotenv-spec; })
+// (import ./tests.nix { inherit pkgs tasks dotenv-spec; })
 // (import ./composition.nix {
   inherit
     pkgs

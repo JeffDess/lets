@@ -1,4 +1,8 @@
-{ pkgs, dotenv-spec }:
+{
+  pkgs,
+  tasks,
+  dotenv-spec,
+}:
 {
   dotenv =
     let
@@ -24,6 +28,40 @@
         } >"$TMPDIR/wrapped.sh"
         shellcheck -s bash -e SC2329 "$TMPDIR/wrapped.sh"
         touch "$out"
+      '';
+  shell =
+    let
+      src = pkgs.lib.fileset.toSource {
+        root = ../.;
+        fileset = pkgs.lib.fileset.unions [
+          ../tests/shell
+          ../tasks/browse/browse.sh
+          ../tasks/lint/lint-commits.sh
+        ];
+      };
+    in
+    pkgs.runCommand "check-shell"
+      {
+        nativeBuildInputs = [
+          pkgs.convco
+          pkgs.gitMinimal
+          pkgs.gnused
+          tasks.lint_commits.app
+        ];
+      }
+      ''
+        export HOME="$TMPDIR"
+        fail=0
+        for t in ${src}/tests/shell/*.sh; do
+          bash "$t" >>"$TMPDIR/report" || fail=1
+        done
+        if [ "$fail" = 0 ]; then
+          cp "$TMPDIR/report" "$out"
+        else
+          cat "$TMPDIR/report" >&2
+          echo "❌ shell test assertions failed" >&2
+          exit 1
+        fi
       '';
   examples =
     let

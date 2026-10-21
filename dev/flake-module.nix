@@ -71,7 +71,12 @@
       };
 
       checks = import ../checks {
-        inherit pkgs system taskOutputs;
+        inherit
+          pkgs
+          system
+          tasks
+          taskOutputs
+          ;
         inherit (inputs)
           self
           nixpkgs
