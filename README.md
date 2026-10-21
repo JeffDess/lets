@@ -108,6 +108,7 @@ Already using [flake-parts](https://flake.parts)? Import the module and set
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     lets.url = "github:JeffDess/lets";
+    lets.inputs.flake-parts.follows = "flake-parts";
   };
 
   outputs =
