@@ -20,6 +20,79 @@
       echo "✅ flake-parts module produces the lets binary (and a default)"
       touch "$out"
     '';
+  consumer-isolation =
+    let
+      forced = throw "lets' nixpkgs was forced";
+      sealed = (import ../flake.nix).outputs {
+        self = sealed // {
+          inherit (self) outPath;
+          inputs = {
+            inherit flake-parts;
+            nixpkgs = forced;
+          };
+        };
+        inherit flake-parts;
+        nixpkgs = forced;
+      };
+      consumerSelf = {
+        inherit (self) outPath;
+        inputs = consumerInputs;
+      };
+      consumerInputs = {
+        self = consumerSelf;
+        inherit nixpkgs;
+      };
+      fp = flake-parts.lib.mkFlake { inputs = consumerInputs; } {
+        systems = [ system ];
+        imports = [ sealed.flakeModules.default ];
+        perSystem.lets.tasks = ../tasks;
+      };
+      vanilla = sealed.lib.mkFlake {
+        inherit nixpkgs;
+        systems = [ system ];
+        tasks = ../tasks;
+      };
+      tasks = sealed.lib.mkBaseTasks { inherit pkgs; };
+      greet = (sealed.lib.mkTask { inherit pkgs; }) {
+        description = "Say hello";
+        run = "echo hello";
+      };
+      lock = builtins.fromJSON (builtins.readFile ../flake.lock);
+      evaluates = v: (builtins.tryEval (builtins.deepSeq v true)).success;
+      results = {
+        mk_task = evaluates (greet.__build "greet").app.drvPath;
+        mk_tasks = evaluates (sealed.lib.mkTasks { inherit greet; }).greet.app.drvPath;
+        load_tasks =
+          evaluates
+            (sealed.lib.loadTasks {
+              inherit pkgs;
+              src = ../tasks;
+            }).demo.app.drvPath;
+        mk_base_tasks = evaluates tasks.demo.app.drvPath;
+        mk_outputs = evaluates (sealed.lib.mkOutputs { inherit pkgs tasks; }).packages.demo.drvPath;
+        mk_lets = evaluates (sealed.lib.mkLets { inherit pkgs tasks; }).drvPath;
+        flake_module_package = evaluates fp.packages.${system}.lets.drvPath;
+        flake_module_dev_shell = evaluates fp.devShells.${system}.default.drvPath;
+        mk_flake_package = evaluates vanilla.packages.${system}.lets.drvPath;
+        mk_flake_dev_shell = evaluates vanilla.devShells.${system}.default.drvPath;
+        root_inputs =
+          builtins.attrNames lock.nodes.root.inputs == [
+            "flake-parts"
+            "nixpkgs"
+          ];
+        flake_parts_own_lib = builtins.isString lock.nodes.flake-parts.inputs.nixpkgs-lib;
+      };
+      failures = builtins.attrNames (pkgs.lib.filterAttrs (_: v: !v) results);
+    in
+    pkgs.runCommand "check-consumer-isolation" { failuresJson = builtins.toJSON failures; } ''
+      if [ "$failuresJson" = "[]" ]; then
+        echo "✅ consumers evaluate lets without its nixpkgs / its lock has no dev inputs"
+        touch "$out"
+      else
+        echo "❌ consumer isolation failures: $failuresJson" >&2
+        exit 1
+      fi
+    '';
   devshell-composition =
     let
       vanilla = self.lib.mkFlake {
@@ -307,7 +380,9 @@
             mkTask {
               description = "Run ${child} after: ${setup}";
               runtimeInputs = [ tasks.${child}.app ];
-              run = "${setup} ${child}";
+              run = ''
+                ${setup} ${child}
+              '';
             };
         in
         {
