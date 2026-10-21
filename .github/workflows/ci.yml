@@ -150,4 +150,4 @@ jobs:
           nix build -L \
             ".#packages.${{ matrix.system }}.lets" \
             ".#packages.${{ matrix.system }}.completions" \
-            ".#checks.${{ matrix.system }}.unit"
+            ".#checks.${{ matrix.system }}.nix-unit"

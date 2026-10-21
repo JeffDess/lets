@@ -7,19 +7,20 @@
   };
 
   outputs =
-    inputs@{ flake-parts, ... }:
+    inputs@{ nixpkgs, flake-parts, ... }:
     let
       version = "0.2.1";
       letsLib = import ./lib;
-    in
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ flake-parts.flakeModules.partitions ];
-
       systems = [
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
       ];
+    in
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ flake-parts.flakeModules.partitions ];
+
+      inherit systems;
 
       partitionedAttrs = {
         checks = "dev";
@@ -79,6 +80,10 @@
         };
 
         flakeModules.default = letsLib.flakeModule version;
+
+        tests.systems = nixpkgs.lib.genAttrs systems (
+          system: import ./tests { pkgs = nixpkgs.legacyPackages.${system}; }
+        );
       };
     };
 }
