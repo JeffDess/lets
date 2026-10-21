@@ -96,21 +96,12 @@ jobs:
           fi
           nix run .#lint_commits -- "${flags[@]}" --from "$from" --to "$to"
 
-  tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-nix
-      - name: Run unit and example tests
-        run: nix run .#test
-
   flake-check:
     needs:
       - format
       - lint-nix
       - lint-bash
       - lint-editorconfig
-      - tests
     strategy:
       fail-fast: false
       matrix:
@@ -124,7 +115,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
-      - name: Run flake checks
+      - name: Unit tests
+        run: nix build -L ".#checks.${{ matrix.system }}.nix-unit"
+      - name: Shell tests
+        run: nix build -L ".#checks.${{ matrix.system }}.shell"
+      - name: Examples
+        run: nix build -L ".#checks.${{ matrix.system }}.examples"
+      - name: Other flake checks
         run: nix flake check -L --no-update-lock-file
 
   build-darwin:
@@ -133,7 +130,6 @@ jobs:
       - lint-nix
       - lint-bash
       - lint-editorconfig
-      - tests
     strategy:
       fail-fast: false
       matrix:
@@ -145,9 +141,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
-      - name: Build lets outputs and run unit tests
+      - name: Build lets outputs
         run: |
           nix build -L \
             ".#packages.${{ matrix.system }}.lets" \
-            ".#packages.${{ matrix.system }}.completions" \
-            ".#checks.${{ matrix.system }}.nix-unit"
+            ".#packages.${{ matrix.system }}.completions"
+      - name: Unit tests
+        run: nix build -L ".#checks.${{ matrix.system }}.nix-unit"
+      - name: Shell tests
+        run: nix build -L ".#checks.${{ matrix.system }}.shell"
