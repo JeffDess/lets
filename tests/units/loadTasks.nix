@@ -6,9 +6,9 @@ let
   secretsErrors = import ../../lib/secretsErrors.nix { inherit lib; };
   withCommand = extra: secretsErrors ({ command = "sops -d {}"; } // extra);
   pathsMsg = ''lets: envFiles must be strings (".env"), not paths: they are read at runtime, not copied to the store'';
-  loadsWith =
-    extra: src:
-    (builtins.tryEval (builtins.attrNames (loadTasks ({ inherit pkgs src; } // extra)))).success;
+  loadWith = extra: src: builtins.attrNames (loadTasks ({ inherit pkgs src; } // extra));
+  load = loadWith { };
+  loadsWith = extra: src: (builtins.tryEval (loadWith extra src)).success;
   loads = loadsWith { };
   inlineTask =
     name:
@@ -26,13 +26,19 @@ in
   ### Reserved task names (clash with lets builtins) ###
 
   testReservedHelpRejected = {
-    expr = loads (inlineTask "help");
-    expected = false;
+    expr = load (inlineTask "help");
+    expectedError = {
+      type = "ThrownError";
+      msg = "reserved by lets builtins: help";
+    };
   };
 
   testReservedLetsRejected = {
-    expr = loads (inlineTask "lets");
-    expected = false;
+    expr = load (inlineTask "lets");
+    expectedError = {
+      type = "ThrownError";
+      msg = "reserved by lets builtins: lets";
+    };
   };
 
   testNonReservedAccepted = {
@@ -43,15 +49,21 @@ in
   ### Duplicate task names across files ###
 
   testDuplicateAcrossFilesRejected = {
-    expr = loads ../fixtures/dup-tasks;
-    expected = false;
+    expr = load ../fixtures/dup-tasks;
+    expectedError = {
+      type = "ThrownError";
+      msg = "defined in more than one file: dup";
+    };
   };
 
   ### envFiles ###
 
   testEnvFilesPathRejected = {
-    expr = loadsWith { envFiles = [ ../../README.md ]; } (inlineTask "greet");
-    expected = false;
+    expr = loadWith { envFiles = [ ../../README.md ]; } (inlineTask "greet");
+    expectedError = {
+      type = "ThrownError";
+      msg = "envFiles must be strings";
+    };
   };
 
   testEnvFilesPathMessage = {
@@ -145,10 +157,13 @@ in
   ### secrets ###
 
   testSecretsCommandNeedsBraces = {
-    expr = loadsWith {
+    expr = loadWith {
       secrets.command = "sops -d";
     } (inlineTask "greet");
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets\\.command must contain \\{\\}";
+    };
   };
 
   testSecretsCommandAccepted = {
@@ -159,43 +174,55 @@ in
   };
 
   testSecretsOnErrorValidated = {
-    expr = loadsWith {
+    expr = loadWith {
       secrets = {
         command = "sops -d {}";
         onError = "retry";
       };
     } (inlineTask "greet");
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets\\.onError must be";
+    };
   };
 
   testSecretsPatternNeedsName = {
-    expr = loadsWith {
+    expr = loadWith {
       secrets = {
         command = "sops -d {}";
         pattern = ".enc.env";
       };
     } (inlineTask "greet");
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets\\.pattern must be a string containing \\{name\\}";
+    };
   };
 
   testSecretsFilesMustBeStrings = {
-    expr = loadsWith {
+    expr = loadWith {
       secrets = {
         command = "sops -d {}";
         files = "base";
       };
     } (inlineTask "greet");
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "secrets\\.files must be a list";
+    };
   };
 
   testSecretsUnknownKeyRejected = {
-    expr = loadsWith {
+    expr = loadWith {
       secrets = {
         command = "sops -d {}";
         extra = "{name}";
       };
     } (inlineTask "greet");
-    expected = false;
+    expectedError = {
+      type = "ThrownError";
+      msg = "unknown secrets attribute.*: extra";
+    };
   };
 
   testSecretsNotAttrsMessage = {
