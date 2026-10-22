@@ -1328,9 +1328,8 @@ manager, pass `--from`, `--to` and the push target yourself.
 In CI, pick the base commit and the fixup policy from the event.
 
 You can see an example on the [GitHub CI workflow](.github/workflows/ci.yml)
-`lint-commits` job: fixups pass on draft pull requests and feature branch
-pushes, and fail on ready pull requests and pushes to `main`. A GitLab
-equivalent:
+`lint-commits` job: fixups pass on draft pull requests, and fail on ready
+pull requests and pushes to `main`. A GitLab equivalent:
 
 <!-- editorconfig-checker-disable -->
 ```yaml
