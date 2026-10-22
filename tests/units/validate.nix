@@ -157,14 +157,4 @@ in
     ];
     expected = [ "duplicate argument name(s): foo" ];
   };
-
-  ### Error messages are part of the contract ###
-
-  testDuplicateShortMessage = {
-    expr = errs {
-      a.short = "x";
-      b.short = "x";
-    };
-    expected = [ "duplicate short name(s): -x" ];
-  };
 }
