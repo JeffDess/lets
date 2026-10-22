@@ -21,6 +21,7 @@ in
   runtimeInputs ? [ ],
   envFiles ? [ ],
   secrets ? [ ],
+  keepGoing ? false,
   run,
 }:
 {
@@ -46,6 +47,23 @@ in
           key
           ;
       };
+      subtasks = map (p: p.letsTask) (builtins.filter (p: p ? letsTask) runtimeInputs);
+      keepGoingPreamble = ''
+        _lets_failed=()
+        _lets_keep_going() {
+          local t
+          for t in "$@"; do
+            eval "$t() { command $t \"\$@\" || _lets_failed+=($t); }"
+          done
+        }
+        _lets_keep_going ${lib.escapeShellArgs subtasks}
+      '';
+      keepGoingSummary = ''
+        if ((''${#_lets_failed[@]} > 0)); then
+          error "failed: ''${_lets_failed[*]}"
+          exit 1
+        fi
+      '';
       secretErrors =
         lib.optional (!secretsOk) "secrets must be a list of non-empty strings"
         ++ lib.optional (
@@ -57,6 +75,7 @@ in
           inherit normArgs;
         }
         ++ secretErrors
+        ++ lib.optional (!builtins.isBool keepGoing) "keepGoing must be a boolean"
         ++ map (lib.removePrefix "lets: ") (envFilesErrors projectEnvFiles ++ envFilesErrors envFiles);
       parser = buildParser {
         name = resolvedName;
@@ -76,18 +95,24 @@ in
         run
         runtimeInputs
         secrets
+        keepGoing
         ;
       args = normArgs;
       app = pkgs.writeShellApplication {
         name = resolvedName;
         runtimeInputs = allInputs;
         excludeShellChecks = [ "SC2329" ];
-        text = lib.concatStringsSep "\n\n" [
-          fmtPreamble
-          envLoad
-          parser.parse
-          run
-        ];
+        passthru.letsTask = resolvedName;
+        text = lib.concatStringsSep "\n\n" (
+          [
+            fmtPreamble
+            envLoad
+            parser.parse
+          ]
+          ++ lib.optional keepGoing keepGoingPreamble
+          ++ [ run ]
+          ++ lib.optional keepGoing keepGoingSummary
+        );
       };
     };
 }

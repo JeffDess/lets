@@ -13,7 +13,13 @@ let
   flatten =
     exName:
     let
-      ts = mkTasks (import (dir + "/${exName}/task.nix") { inherit pkgs lib mkTask; });
+      ts = mkTasks (
+        self:
+        import (dir + "/${exName}/task.nix") {
+          inherit pkgs lib mkTask;
+          tasks = self;
+        }
+      );
       cases = import (dir + "/${exName}/cases.nix");
     in
     map (

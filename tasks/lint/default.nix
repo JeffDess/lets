@@ -98,6 +98,7 @@
 
   lint = mkTask {
     description = "Run all lint tasks";
+    keepGoing = true;
     runtimeInputs = with tasks; [
       lint_nix.app
       lint_bash.app

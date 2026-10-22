@@ -282,6 +282,41 @@ in
     };
   };
 
+  testRejectKeepGoingNotBool = {
+    expr = build (base // { keepGoing = "yes"; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "keepGoing must be a boolean";
+    };
+  };
+
+  ### Keep going ###
+
+  testKeepGoingDefault = {
+    expr = (build base).keepGoing;
+    expected = false;
+  };
+
+  testKeepGoingWrapsSubtasks = {
+    expr =
+      lib.hasInfix "_lets_keep_going sub\n"
+        (build (
+          base
+          // {
+            keepGoing = true;
+            runtimeInputs = [ ((mkTask base).__build "sub").app ];
+          }
+        )).app.text;
+    expected = true;
+  };
+
+  testKeepGoingOffLeavesSubtasksAlone = {
+    expr =
+      lib.hasInfix "_lets_failed"
+        (build (base // { runtimeInputs = [ ((mkTask base).__build "sub").app ]; })).app.text;
+    expected = false;
+  };
+
   ### Env preamble ###
 
   testEnvFilesCheckedByMkTask = {

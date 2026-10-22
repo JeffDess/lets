@@ -235,6 +235,7 @@ Tasks have those attributes:
 | `args` | attrset or list | No | CLI arguments (options, flags and positionals) parsed and passed to `run` as variables. See the [declarative arguments section](#declarative-arguments). |
 | `envFiles` | list of strings | No | Env files loaded before this task runs, after the project's. See [environment files](#environment-files). |
 | `secrets` | list of strings | No | Secrets decrypted before the task runs, with the project-wide `secrets.command`. See [secrets for a task](#secrets-for-a-task). |
+| `keepGoing` | bool | No | Keep running when a composed task fails, then fail at the end. Defaults to `false`. See [task composition](#task-composition). |
 <!-- editorconfig-checker-enable -->
 
 > [!IMPORTANT]
@@ -888,6 +889,28 @@ works everywhere:
   };
 }
 ```
+
+`run` stops at the first failing command, so `check` skips `test` when
+`lint_nix` fails. Set `keepGoing = true` to run every composed task anyway:
+the task fails at the end and lists the failed tasks. Its own commands still
+stop it at the first failure.
+
+```nix
+{ tasks, mkTask, ... }:
+{
+  check = mkTask {
+    description = "Run all checks";
+    keepGoing = true;
+    runtimeInputs = with tasks; [ lint_nix.app test.app ];
+    run = ''
+      lint_nix
+      test
+    '';
+  };
+}
+```
+
+Full example: [`keep-going`](examples/keep-going/task.nix)
 
 > [!NOTE]
 > A task's binary is named after the **attribute key** it is bound under (e.g.
