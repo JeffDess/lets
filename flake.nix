@@ -9,7 +9,7 @@
   outputs =
     inputs@{ nixpkgs, flake-parts, ... }:
     let
-      version = "0.2.1";
+      version = "0.3.0";
       letsLib = import ./lib;
       systems = [
         "x86_64-linux"

@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.0] - 2026-10-22
+
+### Features
+
+- Load env files into tasks
+- Pick env files at runtime
+- Set env variables from the command line
+- Load secrets through a decoder
+- Add "update flake" task
+- *(mkTask)* Add keepGoing to run every composed task
+
+### Bug Fixes
+
+- Skip CI on tag pushes
+- *(lint)* Render Nix escapes and nested interpolations in bash fragments
+- Load tasks from a single file
+- Drop support for x86_64-darwin
+
+### Documentation
+
+- Describe env files, secrets and the POSIX format
+- Make lets follow the consumer's flake-parts
+- Describe what lets test runs
+
 ## [0.2.1] - 2026-10-17
 
 ### Bug Fixes
