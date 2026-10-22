@@ -121,6 +121,8 @@ jobs:
         run: nix build -L ".#checks.${{ matrix.system }}.shell"
       - name: Examples
         run: nix build -L ".#checks.${{ matrix.system }}.examples"
+      - name: lets test
+        run: nix run .#test
       - name: Other flake checks
         run: nix flake check -L --no-update-lock-file
 
