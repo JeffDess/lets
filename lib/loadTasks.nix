@@ -60,7 +60,14 @@ let
     tasks: extraTasks // (if builtins.isPath src then loadPath tasks else apply tasks src)
   );
 
-  reservedUsed = lib.filter (n: builtins.elem n reserved) (builtins.attrNames result);
+  aliases = lib.concatMap (t: t.aliases or [ ]) (builtins.attrValues result);
+  names = builtins.attrNames result ++ aliases;
+  aliasesUsed = lib.unique (
+    lib.filter (a: builtins.length (lib.filter (n: n == a) names) > 1) aliases
+  );
+  aliasesMsg = "lets: task alias(es) already used: ${lib.concatStringsSep ", " aliasesUsed}";
+
+  reservedUsed = lib.filter (n: builtins.elem n reserved) names;
   reservedMsg =
     "lets: task name(s) reserved by lets builtins: "
     + lib.concatStringsSep ", " reservedUsed
@@ -69,6 +76,6 @@ let
 in
 builtins.seq decoder (
   lib.throwIf (envFilesErrors != [ ]) (lib.concatStringsSep "\n" envFilesErrors) (
-    lib.throwIf (reservedUsed != [ ]) reservedMsg result
+    lib.throwIf (reservedUsed != [ ]) reservedMsg (lib.throwIf (aliasesUsed != [ ]) aliasesMsg result)
   )
 )

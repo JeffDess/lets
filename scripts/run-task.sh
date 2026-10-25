@@ -291,4 +291,4 @@ if [ -z "$target" ]; then
 fi
 
 shift "$consumed"
-run_target "$target" "$@"
+run_target "${ALIASES[$target]:-$target}" "$@"

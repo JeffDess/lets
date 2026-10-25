@@ -9,7 +9,8 @@ export PATH
 source "$comp_file"
 
 fail=0
-tasks="demo lint lint_nix lint_nix-bash version"
+tasks="demo greet lint lint_nix lint_nix-bash nix_lint version"
+top="demo greet lint nix version"
 
 assert() {
   local desc="$1" expected="$2"
@@ -29,7 +30,7 @@ assert() {
   fi
 }
 
-assert "lets <TAB>" "demo lint version" lets ""
+assert "lets <TAB>" "$top" lets ""
 assert "lets lint <TAB>" "nix nix-bash" lets lint ""
 assert "lets lint nix-bash <TAB>" "" lets lint nix-bash ""
 assert "lets lint -<TAB>" "--verbose -v" lets lint "-"
@@ -61,8 +62,8 @@ assert_sorted() {
 root_flags="--completions --env --env-file --help --no-env-files --secret"
 root_flags="$root_flags --show --version -E -S -c -e -h -s -v"
 assert_sorted "lets -<TAB> lists env flags" "$root_flags" lets "-"
-assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
-assert "lets --no-env-files <TAB>" "demo lint version" lets --no-env-files ""
+assert "lets -E .prod.env <TAB>" "$top" lets -E .prod.env ""
+assert "lets --no-env-files <TAB>" "$top" lets --no-env-files ""
 mkdir -p quoting/home && cd quoting || exit 1
 # shellcheck disable=SC2016
 touch '$(touch PWNED).env' 'a b.env' .p.env home/h.env
@@ -90,8 +91,11 @@ assert "lets demo <TAB>" "alice bob" lets demo ""
 assert "lets -E .prod.env demo <TAB>" "alice bob" lets -E .prod.env demo ""
 assert "lets --env-file=x demo <TAB>" "alice bob" lets --env-file = x demo ""
 assert "lets demo alice <TAB>" "" lets demo alice ""
+assert "lets greet <TAB>" "alice bob" lets greet ""
+assert "lets greet -<TAB>" "--locale -l" lets greet "-"
+assert "lets nix <TAB>" "lint" lets nix ""
 assert "lets --env=<TAB> offers nothing" "" lets --env =
-assert "lets --env=A=1 <TAB>" "demo lint version" lets --env = A = 1 ""
+assert "lets --env=A=1 <TAB>" "$top" lets --env = A = 1 ""
 assert "lets lint -e x nix <TAB>" "nix nix-bash" lets lint -e x nix ""
 mkdir -p envdir-bash slashdir/sub && cd envdir-bash && touch .prod.env .dev.env
 assert_sorted "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
@@ -100,17 +104,17 @@ assert "lets -E .p<TAB>" ".prod.env" lets -E ".p"
 touch .prod.enc.env .dev.enc.env
 assert_sorted "lets -S <TAB> lists secret names" "dev prod" lets -S ""
 assert "lets -S d<TAB>" "dev" lets -S "d"
-assert "lets -S dev <TAB>" "demo lint version" lets -S dev ""
+assert "lets -S dev <TAB>" "$top" lets -S dev ""
 assert "lets --secret=d<TAB>" "dev" lets --secret = d
-assert "lets --secret=dev <TAB>" "demo lint version" lets --secret = dev ""
+assert "lets --secret=dev <TAB>" "$top" lets --secret = dev ""
 assert "lets lint -S x nix <TAB>" "nix nix-bash" lets lint -S x nix ""
 mkdir -p project/sub && touch project/flake.nix project/.ci.enc.env
 cd project/sub || exit 1
 assert "lets -S <TAB> from a subdirectory" "ci" lets -S ""
 cd ../.. || exit 1
 assert "lets -e <TAB> offers nothing" "" lets -e ""
-assert "lets -e A=1 <TAB>" "demo lint version" lets -e A = 1 ""
-assert "lets -E a -S b -e K=V --no-env-files <TAB>" "demo lint version" \
+assert "lets -e A=1 <TAB>" "$top" lets -e A = 1 ""
+assert "lets -E a -S b -e K=V --no-env-files <TAB>" "$top" \
   lets -E a -S b -e K = V --no-env-files ""
 assert "lets -e A=1 demo <TAB>" "alice bob" lets -e A = 1 demo ""
 assert "lets --env A=1 demo <TAB>" "alice bob" lets --env A = 1 demo ""

@@ -10,7 +10,10 @@ let
     ;
 
   sortStrings = builtins.sort (a: b: a < b);
-  taskNames = sortStrings (builtins.attrNames tasks);
+  tasksByName = lib.foldl' (acc: t: acc // t) { } (
+    lib.mapAttrsToList (name: task: lib.genAttrs ([ name ] ++ (task.aliases or [ ])) (_: task)) tasks
+  );
+  taskNames = sortStrings (builtins.attrNames tasksByName);
 
   #
   # MODEL
@@ -69,7 +72,7 @@ let
     path = lib.splitString "_" name;
     description = task.description or "";
     args = task.args or { };
-  }) tasks;
+  }) tasksByName;
 
   commands = [ rootCommand ] ++ taskCommands;
 
@@ -138,7 +141,7 @@ let
     if c == null then "" else c.description;
 
   # Alias choices describe their value; task-name choices describe the task.
-  descForChoice = aliases: c: aliases.${c} or (tasks.${c}.description or "");
+  descForChoice = aliases: c: aliases.${c} or (tasksByName.${c}.description or "");
 
   # NOTE: Only the first positional is completed (see _LETS_POSVAL in run-task.sh).
   firstPositional = path: lib.findFirst (_: true) null (positionals path);

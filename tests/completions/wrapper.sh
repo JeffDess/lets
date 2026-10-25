@@ -33,6 +33,9 @@ run_args='run --option warn-dirty false .#demo --'
 
 base="sources=unset no=unset vars=unset"
 assert "no flag" "$base args=$run_args" demo
+assert "alias runs its task" "$base args=$run_args" greet
+assert "multi-word alias runs its task" \
+  "$base args=run --option warn-dirty false .#lint_nix -- --fix" nix lint --fix
 assert "-E" "sources=file:$PWD/a.env no=unset vars=unset args=$run_args" \
   -E a.env demo
 assert "two -E" \

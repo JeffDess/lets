@@ -76,7 +76,9 @@ in
     expr = m.subWords [ ];
     expected = [
       "demo"
+      "greet"
       "lint"
+      "nix"
       "version"
     ];
   };
@@ -182,6 +184,16 @@ in
   ### Root help/show options ###
 
   # Task names as the value of the root -h/--help option.
+  testAliasCompletesTaskOptions = {
+    expr = longsAt [ "greet" ];
+    expected = longsAt [ "demo" ];
+  };
+
+  testMultiWordAliasIsSubWord = {
+    expr = m.subWords [ "nix" ];
+    expected = [ "lint" ];
+  };
+
   testRootHelpOption = {
     expr =
       let
@@ -195,9 +207,11 @@ in
       takesValue = true;
       choices = [
         "demo"
+        "greet"
         "lint"
         "lint_nix"
         "lint_nix-bash"
+        "nix_lint"
         "version"
       ];
     };
@@ -217,9 +231,11 @@ in
       takesValue = true;
       choices = [
         "demo"
+        "greet"
         "lint"
         "lint_nix"
         "lint_nix-bash"
+        "nix_lint"
         "version"
       ];
     };
