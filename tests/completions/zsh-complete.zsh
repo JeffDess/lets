@@ -35,7 +35,8 @@ _describe() {
 source "$comp_file"
 
 fail=0
-tasks="demo lint lint_nix lint_nix-bash version"
+tasks="demo greet lint lint_nix lint_nix-bash nix_lint version"
+top="demo greet lint nix version"
 assert() {
   local desc="$1" expected="$2"
   shift 2
@@ -54,7 +55,7 @@ assert() {
   fi
 }
 
-assert "lets <TAB>" "demo lint version" lets ""
+assert "lets <TAB>" "$top" lets ""
 assert "lets lint <TAB>" "nix nix-bash" lets lint ""
 assert "lets lint -<TAB>" "--verbose -v" lets lint "-"
 assert "lets version --<TAB>" "--dry-run" lets version "--"
@@ -66,13 +67,13 @@ assert "lets -E colon/<TAB> keeps colons" "colon/a:b.env colon/sub/" \
   lets -E colon/
 assert "lets --env-file=colon/a<TAB>" "--env-file=colon/a:b.env" \
   lets --env-file=colon/a
-assert "lets -E .prod.env <TAB>" "demo lint version" lets -E .prod.env ""
+assert "lets -E .prod.env <TAB>" "$top" lets -E .prod.env ""
 mkdir -p envdir-zsh && cd envdir-zsh && touch .prod.env .dev.env
 assert "lets -E <TAB> lists files" ".dev.env .prod.env" lets -E ""
 touch .prod.enc.env .dev.enc.env
 assert "lets -S <TAB> lists secret names" "dev prod" lets -S ""
 assert "lets -e <TAB> offers nothing" "" lets -e ""
-assert "lets --no-env-files <TAB>" "demo lint version" lets --no-env-files ""
+assert "lets --no-env-files <TAB>" "$top" lets --no-env-files ""
 assert "lets --secret=d<TAB>" "--secret=dev" lets --secret=d
 assert "lets demo --locale <TAB>" "" lets demo --locale ""
 

@@ -29,6 +29,15 @@ let
       };
     };
   };
+  taskAliasRender = render {
+    tasks.lint_nix = {
+      description = "Lint Nix files";
+      aliases = [
+        "nix_lint"
+        "ln"
+      ];
+    };
+  };
   tricky = ''Deploy to "prod" with $HOME and $(whoami)'';
 in
 {
@@ -46,6 +55,23 @@ in
 
   testAliasesInShow = {
     expr = lib.hasInfix "docs -> https://example.com/docs" aliasRender.showDispatch;
+    expected = true;
+  };
+
+  ### Task aliases ###
+
+  testTaskAliasesInHelpListing = {
+    expr = lib.hasInfix (lib.escapeShellArg "lint nix, nix lint, ln") taskAliasRender.helpLines;
+    expected = true;
+  };
+
+  testTaskHelpMatchesAliases = {
+    expr = lib.hasInfix "lint_nix|nix_lint|ln)" taskAliasRender.taskHelp;
+    expected = true;
+  };
+
+  testShowMatchesAliases = {
+    expr = lib.hasInfix "lint_nix|nix_lint|ln)" taskAliasRender.showDispatch;
     expected = true;
   };
 

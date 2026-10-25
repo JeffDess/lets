@@ -157,6 +157,11 @@
     let
       fixtureLets = import ../tests/fixtures/lets.nix { inherit pkgs; };
       L = "${fixtureLets}/bin/lets";
+      fixtureApps =
+        (import ../lib/mkOutputs.nix {
+          inherit pkgs;
+          inherit (import ../tests/fixtures/tasks.nix { inherit pkgs; }) tasks;
+        }).apps;
       plainPatternLets = import ../lib/mkLets.nix {
         inherit pkgs;
         inherit (import ../tests/fixtures/tasks.nix { inherit pkgs; }) tasks;
@@ -211,6 +216,20 @@
           echo "  ❌ lets -S <TAB> strips a directory in the pattern (got: $got)"
           fail=1
         fi
+        echo "task aliases"
+        for app in ${fixtureApps.help.program} ${fixtureApps.show.program}; do
+          for args in "greet:Demo task" "nix lint:Lint Nix files"; do
+            desc="''${app##*/} ''${args%%:*}"
+            # shellcheck disable=SC2086
+            got="$("$app" ''${args%%:*} 2>&1)" || true
+            if [[ $got == *"''${args#*:}"* ]]; then
+              echo "  ✅ $desc"
+            else
+              echo "  ❌ $desc (got: $got)"
+              fail=1
+            fi
+          done
+        done
 
         if [ "$fail" = 0 ]; then
           touch "$out"

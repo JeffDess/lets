@@ -22,6 +22,7 @@ in
   envFiles ? [ ],
   secrets ? [ ],
   keepGoing ? false,
+  aliases ? [ ],
   run,
 }:
 {
@@ -33,6 +34,11 @@ in
       argNames = builtins.attrNames normArgs;
       secretsOk = builtins.isList secrets && builtins.all (s: builtins.isString s && s != "") secrets;
       taskSecrets = if secretsOk then secrets else [ ];
+      aliasesOk =
+        builtins.isList aliases
+        && builtins.all (
+          a: builtins.isString a && builtins.match "[^-[:space:]][^[:space:]]*" a != null
+        ) aliases;
       decrypts = decoder != null && (taskSecrets != [ ] || decoder.files != [ ]);
       decoderInputs = lib.optional decrypts decoder.package;
       allInputs = runtimeInputs ++ decoderInputs;
@@ -76,6 +82,9 @@ in
         }
         ++ secretErrors
         ++ lib.optional (!builtins.isBool keepGoing) "keepGoing must be a boolean"
+        ++ lib.optional (
+          !aliasesOk
+        ) "aliases must be a list of non-empty strings without spaces or a leading '-'"
         ++ map (lib.removePrefix "lets: ") (envFilesErrors projectEnvFiles ++ envFilesErrors envFiles);
       parser = buildParser {
         name = resolvedName;
@@ -88,31 +97,39 @@ in
         envPreamble
         "fi"
       ];
-    in
-    lib.throwIf (errors != [ ]) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" {
-      inherit
-        description
-        run
-        runtimeInputs
-        secrets
-        keepGoing
-        ;
-      args = normArgs;
-      app = pkgs.writeShellApplication {
-        name = resolvedName;
-        runtimeInputs = allInputs;
-        excludeShellChecks = [ "SC2329" ];
-        passthru.letsTask = resolvedName;
-        text = lib.concatStringsSep "\n\n" (
-          [
-            fmtPreamble
-            envLoad
-            parser.parse
-          ]
-          ++ lib.optional keepGoing keepGoingPreamble
-          ++ [ run ]
-          ++ lib.optional keepGoing keepGoingSummary
-        );
+      task = {
+        inherit
+          description
+          run
+          runtimeInputs
+          secrets
+          keepGoing
+          aliases
+          ;
+        args = normArgs;
+        app = pkgs.writeShellApplication {
+          name = resolvedName;
+          runtimeInputs = allInputs;
+          excludeShellChecks = [ "SC2329" ];
+          passthru.letsTask = resolvedName;
+          text = lib.concatStringsSep "\n\n" (
+            [
+              fmtPreamble
+              envLoad
+              parser.parse
+            ]
+            ++ lib.optional keepGoing keepGoingPreamble
+            ++ [ run ]
+            ++ lib.optional keepGoing keepGoingSummary
+          );
+        };
       };
+      checked = lib.throwIf (
+        errors != [ ]
+      ) "mkTask (${resolvedName}): ${lib.concatStringsSep "; " errors}" task;
+    in
+    builtins.mapAttrs (n: _: checked.${n}) task
+    // {
+      aliases = if aliasesOk then aliases else checked.aliases;
     };
 }

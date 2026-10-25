@@ -21,6 +21,19 @@ let
         };
       }
     );
+  aliasedTasks =
+    aliases:
+    (
+      { mkTask, ... }:
+      builtins.mapAttrs (
+        _: a:
+        mkTask {
+          description = "x";
+          aliases = a;
+          run = "true";
+        }
+      ) aliases
+    );
 in
 {
   ### Reserved task names (clash with lets builtins) ###
@@ -54,6 +67,116 @@ in
       type = "ThrownError";
       msg = "defined in more than one file: dup";
     };
+  };
+
+  ### Task aliases ###
+
+  testAliasClashingWithTaskRejected = {
+    expr = load (aliasedTasks {
+      color = [ "colour" ];
+      colour = [ ];
+    });
+    expectedError = {
+      type = "ThrownError";
+      msg = "task alias\\(es\\) already used: colour";
+    };
+  };
+
+  testAliasSharedByTwoTasksRejected = {
+    expr = load (aliasedTasks {
+      color = [ "c" ];
+      clean = [ "c" ];
+    });
+    expectedError = {
+      type = "ThrownError";
+      msg = "task alias\\(es\\) already used: c";
+    };
+  };
+
+  testAliasClashingWithExtraTaskRejected = {
+    expr =
+      loadWith
+        {
+          extraTasks.colour = {
+            description = "x";
+          };
+        }
+        (aliasedTasks {
+          color = [ "colour" ];
+        });
+    expectedError = {
+      type = "ThrownError";
+      msg = "task alias\\(es\\) already used: colour";
+    };
+  };
+
+  testAliasEqualToOwnNameRejected = {
+    expr = load (aliasedTasks {
+      color = [ "color" ];
+    });
+    expectedError = {
+      type = "ThrownError";
+      msg = "task alias\\(es\\) already used: color";
+    };
+  };
+
+  testAliasRepeatedInOneTaskRejected = {
+    expr = load (aliasedTasks {
+      color = [
+        "c"
+        "c"
+      ];
+    });
+    expectedError = {
+      type = "ThrownError";
+      msg = "task alias\\(es\\) already used: c";
+    };
+  };
+
+  testInvalidAliasesReportedByMkTask = {
+    expr = load (aliasedTasks {
+      color = "c";
+    });
+    expectedError = {
+      type = "ThrownError";
+      msg = "mkTask \\(color\\): aliases must be a list";
+    };
+  };
+
+  testAliasReservedRejected = {
+    expr = load (aliasedTasks {
+      color = [ "help" ];
+    });
+    expectedError = {
+      type = "ThrownError";
+      msg = "reserved by lets builtins: help";
+    };
+  };
+
+  testAliasCheckKeepsInvalidTasksLazy = {
+    expr = loads (
+      { mkTask, ... }:
+      {
+        good = mkTask {
+          description = "x";
+          run = "true";
+        };
+        bad = mkTask {
+          description = "x";
+          keepGoing = "yes";
+          run = "true";
+        };
+      }
+    );
+    expected = true;
+  };
+
+  testUniqueAliasesAccepted = {
+    expr = loads (aliasedTasks {
+      color = [ "colour" ];
+      clean = [ "c" ];
+    });
+    expected = true;
   };
 
   ### envFiles ###

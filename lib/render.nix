@@ -93,14 +93,17 @@ let
     ++ content;
 
   dispatch =
-    taskNames: linesOf:
+    taskNames: namesOf: linesOf:
     lib.concatStringsSep "\n" (
       [
         "task=\"\${task// /_}\""
         "case \"$task\" in"
       ]
       ++ lib.concatMap (
-        name: [ "${esc name})" ] ++ map (l: "  " + l) (linesOf name) ++ [ "  ;;" ]
+        name:
+        [ "${lib.concatMapStringsSep "|" esc (namesOf name)})" ]
+        ++ map (l: "  " + l) (linesOf name)
+        ++ [ "  ;;" ]
       ) taskNames
       ++ [
         "*)"
@@ -114,12 +117,13 @@ in
 { tasks }:
 let
   taskNames = builtins.sort builtins.lessThan (builtins.attrNames tasks);
+  namesOf = name: [ name ] ++ (tasks.${name}.aliases or [ ]);
 
   taskBlock =
     name:
     let
       task = tasks.${name};
-      displayName = builtins.replaceStrings [ "_" ] [ " " ] name;
+      displayName = lib.concatMapStringsSep ", " (builtins.replaceStrings [ "_" ] [ " " ]) (namesOf name);
       taskLine =
         quoted [ task.description ]
           "printf '  %s%s%s%s - %s\\n' \"$BOLD\" \"$BLUE\" ${esc displayName} \"$RESET\" ${esc task.description}";
@@ -160,6 +164,6 @@ let
 in
 {
   helpLines = lib.concatStringsSep "\n" (lib.concatMap taskBlock taskNames);
-  taskHelp = dispatch taskNames usageSections;
-  showDispatch = dispatch taskNames showLines;
+  taskHelp = dispatch taskNames namesOf usageSections;
+  showDispatch = dispatch taskNames namesOf showLines;
 }

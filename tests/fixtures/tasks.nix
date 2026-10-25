@@ -16,6 +16,7 @@ in
     };
     lint_nix = build {
       description = "Lint Nix files";
+      aliases = [ "nix_lint" ];
       run = "true";
     };
     "lint_nix-bash" = build {
@@ -32,6 +33,7 @@ in
     };
     demo = build {
       description = "Demo task";
+      aliases = [ "greet" ];
       args = {
         locale = {
           short = "l";

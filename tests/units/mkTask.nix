@@ -3,7 +3,7 @@ let
   inherit (pkgs) lib;
   mkTask = import ../../lib/mkTask.nix { inherit pkgs; };
   build = cfg: (mkTask cfg).__build "test";
-  builds = cfg: (builtins.tryEval (build cfg)).success;
+  builds = cfg: (builtins.tryEval (build cfg).description).success;
 
   secretsFixture = {
     command = "fakedec {}";
@@ -288,6 +288,55 @@ in
       type = "ThrownError";
       msg = "keepGoing must be a boolean";
     };
+  };
+
+  testRejectAliasesNotList = {
+    expr = build (base // { aliases = "colour"; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "aliases must be a list of non-empty strings";
+    };
+  };
+
+  testRejectAliasesEmptyString = {
+    expr = build (base // { aliases = [ "" ]; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "aliases must be a list of non-empty strings";
+    };
+  };
+
+  testRejectAliasesWithSpace = {
+    expr = build (base // { aliases = [ "print colors" ]; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "aliases must be a list of non-empty strings";
+    };
+  };
+
+  testRejectAliasesLeadingDash = {
+    expr = build (base // { aliases = [ "-c" ]; });
+    expectedError = {
+      type = "ThrownError";
+      msg = "aliases must be a list of non-empty strings";
+    };
+  };
+
+  ### Aliases ###
+
+  testAliasesDefault = {
+    expr = (build base).aliases;
+    expected = [ ];
+  };
+
+  testAliasesPassthrough = {
+    expr = (build (base // { aliases = [ "colour" ]; })).aliases;
+    expected = [ "colour" ];
+  };
+
+  testAliasesInnerDashAccepted = {
+    expr = (build (base // { aliases = [ "print-colors" ]; })).aliases;
+    expected = [ "print-colors" ];
   };
 
   ### Keep going ###
