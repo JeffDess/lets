@@ -236,6 +236,7 @@ Tasks have those attributes:
 | `envFiles` | list of strings | No | Env files loaded before this task runs, after the project's. See [environment files](#environment-files). |
 | `secrets` | list of strings | No | Secrets decrypted before the task runs, with the project-wide `secrets.command`. See [secrets for a task](#secrets-for-a-task). |
 | `keepGoing` | bool | No | Keep running when a composed task fails, then fail at the end. Defaults to `false`. See [task composition](#task-composition). |
+| `aliases` | list of strings | No | Other names for the task. See [task aliases](#task-aliases). |
 <!-- editorconfig-checker-enable -->
 
 > [!IMPORTANT]
@@ -261,6 +262,28 @@ Minimal task example with external script:
     run = builtins.readFile ./scripts/greet.sh;
   };
 }
+```
+
+### Task aliases
+
+An alias works anywhere `lets` accepts a task name. Write it like a task key:
+
+```nix
+{ mkTask, ... }:
+{
+  color = mkTask {
+    description = "Show colors";
+    aliases = [ "colour" "print_colors" ];
+    run = "echo red";
+  };
+}
+```
+
+```bash
+$ lets colour
+# red
+$ lets print colors
+# red
 ```
 
 ### Extra inputs
