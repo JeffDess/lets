@@ -5,6 +5,12 @@ lets_bin="$1"
 stub="$(mktemp -d)"
 cat >"$stub/nix" <<EOF
 #!$BASH
+if [ "\$1" = build ]; then
+  printf '%s\n' "\$*" >>"$stub/builds"
+  [ -n "\${STUB_BUILT:-}" ] || { echo "stub: build failed" >&2; exit 1; }
+  printf '%s\n' "\$STUB_BUILT"
+  exit 0
+fi
 printf 'sources=%s no=%s vars=%s args=%s%s\n' \
   "\${LETS_ENV_SOURCES-unset}" "\${LETS_NO_ENV_FILES-unset}" \
   "\${LETS_ENV_VARS-unset}" "\$*" \
@@ -157,6 +163,33 @@ mkdir colon:dir
   exit "$fail"
 ) || fail=1
 assert "unknown flag" 'ERROR: unknown option "-x"' -x demo
+
+builds() { cat "$stub/builds" 2>/dev/null | wc -l; }
+fake="$stub/fake"
+mkdir -p "$fake/bin"
+cat >"$fake/bin/lets" <<EOF
+#!$BASH
+printf 'rebuilt vars=%s args=%s\n' "\${LETS_ENV_VARS-unset}" "\$*"
+EOF
+chmod +x "$fake/bin/lets"
+STUB_BUILT="$fake" assert "unknown task: rebuilt lets takes over" \
+  "rebuilt vars=unset args=__rebuilt nope x" nope x
+STUB_BUILT="$fake" assert "unknown task: env flags passed once" \
+  "rebuilt vars=A=1 args=__rebuilt nope" -e A=1 nope
+assert "unknown task: build failure shows nix's error" \
+  'stub: build failed
+ERROR: unknown task "nope"' nope
+before="$(builds)"
+STUB_BUILT="$fake" assert "after a rebuild: unknown task reported" \
+  'ERROR: unknown task "nope"' __rebuilt nope
+if [ "$(builds)" = "$before" ]; then
+  printf '  ✅ after a rebuild: no second build\n'
+else
+  printf '  ❌ after a rebuild: no second build\n'
+  fail=1
+fi
+assert "after a rebuild: the task runs without the marker" \
+  "$base args=$run_args x" __rebuilt demo x
 
 if [ "$fail" = 0 ]; then
   echo "✅ wrapper assertions passed"

@@ -13,6 +13,12 @@ flake_root() {
   done
 }
 
+rebuilt=""
+if [ "${1:-}" = "__rebuilt" ]; then
+  rebuilt=1
+  shift
+fi
+
 if [ "${1:-}" = "__complete" ]; then
   shift
   argc=$#
@@ -285,7 +291,14 @@ done
 if [ -z "$target" ]; then
   case "$1" in
   -*) error "unknown option \"$1\"" ;;
-  *) error "unknown task \"$1\"" ;;
+  *)
+    if [ -z "$rebuilt" ] && root="$(flake_root)" &&
+      fresh="$(nix build --option warn-dirty false --no-link \
+        --print-out-paths "$root#lets")"; then
+      exec "$fresh/bin/lets" __rebuilt "$@"
+    fi
+    error "unknown task \"$1\""
+    ;;
   esac
   exit 1
 fi
